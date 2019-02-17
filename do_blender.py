@@ -84,7 +84,8 @@ pr = cProfile.Profile()
 pr.enable()
 
 #big_data = trace_lineage.get_big_data('mml-1_5_CD20070804.csv')
-infilename = 'pha4_b2_CD20060629.csv'
+#infilename = 'pha4_b2_CD20060629.csv'
+infilename = 'lin-13_6B12_1_L1_CD20080814.csv'
 #infilename = 'pha4_b2_CD20060629_w_q.csv'
 #do_thing(obj, celltype, 'elt7_c2a_CD20070310.csv')
 #infilename = 'mml-1_5_CD20070804.csv'

@@ -44,6 +44,7 @@ class file_processing_panel(bpy.types.Panel):
 
     def draw(self, context):
         #obj = bpy.context.scene.objects.get("embryo_parent")
+        scene = bpy.context.scene
 
         layout = self.layout
         row = layout.row()
@@ -58,11 +59,14 @@ class file_processing_panel(bpy.types.Panel):
         row.label(text="Object templates for cell types:")
 
         row = layout.row()
+        row.label(text="Embryo parent")
+        row.prop_search(scene, "embryo_parent", scene, "objects", text="")
+
+        row = layout.row()
         split = row.split()
 
         col = split.column()
         col.label(text="C cell:")
-        scene = bpy.context.scene
         col.prop_search(scene, "C_cell_template", scene, "objects", text="")
 
         col = split.column()
@@ -114,6 +118,11 @@ def register():
     )
     main_blender_object = bpy.types.Scene
     #blender_object = bpy.types.Object
+    main_blender_object.embryo_parent = bpy.props.StringProperty(
+        name = "Embryo object parent",
+        default = "embryo_parent",
+        description = "All added objects are parented to this object"
+    )
 
     main_blender_object.C_cell_template = bpy.props.StringProperty(
         name = "C Cell Object template",

@@ -43,7 +43,8 @@ class file_processing_panel(bpy.types.Panel):
     bl_context = "objectmode"
 
     def draw(self, context):
-        obj = context.object
+        #obj = bpy.context.scene.objects.get("embryo_parent")
+
         layout = self.layout
         row = layout.row()
         row.label(text="Open and process an epic.gs.data file:")
@@ -61,23 +62,23 @@ class file_processing_panel(bpy.types.Panel):
 
         col = split.column()
         col.label(text="C cell:")
-        col.prop_search(obj, "C_cell_template", context.scene, "objects", text="")
-        #col.prop_search(obj, "C_cell_template", context, "scene", text="")
+        scene = bpy.context.scene
+        col.prop_search(scene, "C_cell_template", scene, "objects", text="")
 
         col = split.column()
         col.label(text="D cell:")
-        col.prop_search(obj, "D_cell_template", context.scene, "objects", text="")
+        col.prop_search(scene, "D_cell_template", scene, "objects", text="")
 
         row = layout.row()
         split = row.split()
 
         col = split.column()
         col.label(text="E cell:")
-        col.prop_search(obj, "E_cell_template", context.scene, "objects", text="")
+        col.prop_search(scene, "E_cell_template", scene, "objects", text="")
 
         col = split.column()
         col.label(text="P cell:")
-        col.prop_search(obj, "P_cell_template", context.scene, "objects", text="")
+        col.prop_search(scene, "P_cell_template", scene, "objects", text="")
         
 
 
@@ -87,27 +88,47 @@ def process_epic_gs_button(self, context):
         icon = "FILESEL"
     )
 
+def layers_tuple(selected=0):
+    layer_list = [False] * 20
+    layer_list[0] = True
+    return tuple(layer_list)
+
+
 # registration
 def register():
+    print("-register-", file=sys.stderr)
+
+    if bpy.context.scene.objects.find("embryo_parent") < 0:
+        bpy.ops.object.empty_add(
+            type='PLAIN_AXES', 
+            view_align=False, 
+            location=(0, 0, 0), 
+            layers=layers_tuple()
+        )
+        bpy.context.object.name = "embryo_parent"
+
     bpy.types.Scene.epic_gs_filename = bpy.props.StringProperty(
         name = "Epic filename",
         default = "",
         description = "Epic gs name"
     )
-bpy.types.Scene.C_cell_template = bpy.props.StringProperty(
+    main_blender_object = bpy.types.Scene
+    #blender_object = bpy.types.Object
+
+    main_blender_object.C_cell_template = bpy.props.StringProperty(
         name = "C Cell Object template",
         default = "",
         description = "This object will be cloned to produce all of the C cells in the data file"
     )
-    bpy.types.Object.D_cell_template = bpy.props.StringProperty(
+    main_blender_object.D_cell_template = bpy.props.StringProperty(
         name = "D Cell Object template",
         description = "This object will be cloned to produce all of the D cells in the data file"
     )
-    bpy.types.Object.E_cell_template = bpy.props.StringProperty(
+    main_blender_object.E_cell_template = bpy.props.StringProperty(
         name = "E Cell Object template",
         description = "This object will be cloned to produce all of the E cells in the data file"
     )
-    bpy.types.Object.P_cell_template = bpy.props.StringProperty(
+    main_blender_object.P_cell_template = bpy.props.StringProperty(
         name = "P Cell Object template",
         description = "This object will be cloned to produce all of the P cells in the data file"
     )

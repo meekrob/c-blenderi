@@ -1,3 +1,15 @@
+bl_info = {
+    "name" : "EPIC GS data Processor",
+    "author" : "David C. King",
+    "version" : (2, 79, 0),
+    "location" : "View3D > Tools > Create",
+    "description" : "Process EPIC.GS data files into full animations: 1 object per cell",
+    "tracker_url" : "https://github.com/meekrob/c-blenderi/issues",
+    "warning" : "",
+    "wiki_url" : "https://github.com/meekrob/c-blenderi/wiki",
+    "category" : "3D View"
+}
+
 import bpy
 from bpy.props import StringProperty
 from bpy.props import CollectionProperty
@@ -130,6 +142,9 @@ def layers_tuple(selected=0):
 def register():
     print("-register-", file=sys.stderr)
 
+    """
+    # While trying to activate as an add-on
+    # AttributeError: '_RestrictContext' object has no attribute 'scene'
     if bpy.context.scene.objects.find("embryo_parent") < 0:
         bpy.ops.object.empty_add(
             type='PLAIN_AXES', 
@@ -138,6 +153,7 @@ def register():
             layers=layers_tuple()
         )
         bpy.context.object.name = "embryo_parent"
+    """
 
     bpy.types.Scene.epic_gs_filename = bpy.props.StringProperty(
         name = "Epic filename",

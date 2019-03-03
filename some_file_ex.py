@@ -3,9 +3,22 @@ from bpy.props import StringProperty
 from bpy.props import CollectionProperty
 import sys
 
+class OBJECT_OT_epic(bpy.types.Operator):
+    """Epic processing button"""
+    bl_label = "Process file"
+    bl_idname = "object.epic"
+    bl_options = {'REGISTER'}
+
+    run_this_shit = False
+
+    def execute(self, context):
+        print("Running this shit: FILEPATH %s" % context.scene.epic_gs_filename)
+        return {'FINISHED'}
+        
+
 class OBJECT_OT_custompath(bpy.types.Operator):
     #bl_label = "Select epic.gs data file"
-    bl_label = ""
+    bl_label = "Process EPIC.GS file"
     bl_idname = "object.custom_path"
     __doc__ = ""
 
@@ -25,7 +38,7 @@ class OBJECT_OT_custompath(bpy.types.Operator):
         default= "")
 
     def execute(self, context):
-        #print("FILEPATH %s"%self.properties.filepath)#display the file name and current path        
+        print("FILEPATH %s"%self.properties.filepath)#display the file name and current path        
         context.scene.epic_gs_filename = self.properties.filepath
         return {'FINISHED'}
 
@@ -51,16 +64,20 @@ class file_processing_panel(bpy.types.Panel):
         row.label(text="Open and process an epic.gs.data file:")
         row = layout.row(align=True)
         row.prop( context.scene, "epic_gs_filename", text="")
-        p = row.operator( OBJECT_OT_custompath.bl_idname, icon = "FILESEL")
+        p = row.operator( OBJECT_OT_custompath.bl_idname, text="", icon = "FILESEL")
         p.filepath = context.scene.epic_gs_filename 
+
+        row = layout.row()
+        row.label(text="Setup:")
+
+        # empty parent for everything
+        row = layout.row()
+        row.label(text="Embryo parent")
+        row.prop_search(scene, "embryo_parent", scene, "objects", text="")
 
         # cell type object templates
         row = layout.row()
         row.label(text="Object templates for cell types:")
-
-        row = layout.row()
-        row.label(text="Embryo parent")
-        row.prop_search(scene, "embryo_parent", scene, "objects", text="")
 
         row = layout.row()
         split = row.split()
@@ -83,6 +100,11 @@ class file_processing_panel(bpy.types.Panel):
         col = split.column()
         col.label(text="P cell:")
         col.prop_search(scene, "P_cell_template", scene, "objects", text="")
+
+        row = layout.row()
+        row.label(text="Operations:")
+        row = layout.row()
+        p = row.operator(OBJECT_OT_epic.bl_idname)
         
 
 
@@ -143,11 +165,13 @@ def register():
     )
 
 
+    bpy.utils.register_class(OBJECT_OT_epic)
     bpy.utils.register_class(OBJECT_OT_custompath)
     bpy.utils.register_class(file_processing_panel)
     bpy.types.INFO_MT_mesh_add.append(process_epic_gs_button)
 
 def unregister():
+    bpy.utils.unregister_class(OBJECT_OT_epic)
     bpy.utils.unregister_class(OBJECT_OT_add_custompath)
     bpy.utils.unregister_class(file_processing_panel)
     bpy.types.INFO_MT_mesh_add.remove(process_epic_gs_button)

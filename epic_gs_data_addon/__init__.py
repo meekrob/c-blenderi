@@ -48,7 +48,7 @@ context.scene.default_cell_material: %s""" %
             cell_template = bpy.data.objects.get( context.scene.default_cell_template )
         else:
             # add an object
-            bpy.ops.mesh.primitive_uv_sphere_add(size=1, view_align=False, enter_editmode=False, location=(0, 0, 0), layers=layer_tuple())
+            bpy.ops.mesh.primitive_uv_sphere_add(size=1, view_align=False, enter_editmode=False, location=(0, 0, 0), layers=layers_tuple())
             context.scene.default_cell_template = context.object
 
 

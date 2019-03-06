@@ -114,24 +114,16 @@ class file_processing_panel(bpy.types.Panel):
         row.label(text="Object template for cell types:")
 
         row = layout.row()
-        row.prop_search(bpy.context.scene, "default_cell_template", bpy.context.scene, "objects", text="")
-        scene = context.scene
+        split = row.split()
+        col = split.column()
+        col.label(text="Mesh template")
+        col.prop_search(bpy.context.scene, "default_cell_template", bpy.context.scene, "objects", text="")
 
+        col = split.column()
+        col.label(text="Material template")
+        col.prop_search(scene, "default_cell_material", bpy.data, "materials", text="")
 
-        #row = layout.row()
-        #row.label(text="Material template for cell types 2:")
-
-        #row = layout.row()
-        #row.prop_search(bpy.types, "default_cell_material", bpy.types, "materials", text="")
-        #print("bpy.context.scene.default_cell_template:", context.scene.default_cell_template, file=sys.stderr)
-        #if context.scene.default_cell_template:
-        #print(context.scene.default_cell_template.data.materials.keys(), file=sys.stderr)
-        row = layout.row()
-        row.label(text="Material template for cell types:")
-
-        row = layout.row()
-        row.prop_search(scene, "default_cell_material", bpy.data, "materials", text="")
-
+        """
         row = layout.row()
         split = row.split()
 
@@ -153,6 +145,7 @@ class file_processing_panel(bpy.types.Panel):
         col = split.column()
         col.label(text="P cell:")
         col.prop_search(bpy.context.scene, "P_cell_template", bpy.context.scene, "objects", text="")
+        """
 
         row = layout.row()
         row.label(text="Operations:")

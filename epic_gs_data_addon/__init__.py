@@ -32,7 +32,15 @@ class OBJECT_OT_epic(bpy.types.Operator):
         if context.scene.epic_gs_filename == '':
             self.report({'ERROR_INVALID_INPUT'}, "Need to specify a file")
             return {'CANCELLED'}
-        self.report({'INFO'}, "Processing file: %s" % context.scene.epic_gs_filename)
+
+        self.report(
+            {'INFO'}, 
+            """Processing context.scene.epic_gs_filename: %s,
+bpy.types.Scene.embryo_parent: %s,
+bpy.types.Scene.default_cell_template: %s,
+bpy.types.Scene.default_cell_material: %s""" %     
+            (context.scene.epic_gs_filename, bpy.types.Scene.embryo_parent, bpy.types.Scene.default_cell_template, bpy.types.Scene.default_cell_material)
+        )
         infilename = context.scene.epic_gs_filename
 
         # set up the scene
@@ -185,7 +193,7 @@ def register():
         description = "Epic gs name"
     )
     main_blender_object = bpy.types.Scene
-    #blender_object = bpy.types.Object
+
     main_blender_object.embryo_parent = bpy.props.PointerProperty(
         type=bpy.types.Object,
         name = "Embryo object parent",
@@ -228,7 +236,7 @@ def register():
         poll = mesh_check_function
 
     )
-    bpy.types.Material.default_cell_material = bpy.props.PointerProperty(
+    main_blender_object.default_cell_material = bpy.props.PointerProperty(
         type=bpy.types.Material,
         name = "Default cell material",
         description = "This material will be assigned to all cells",
@@ -259,6 +267,7 @@ def unregister():
     del bpy.types.Scene.epic_gs_filename
     del bpy.types.Scene.embryo_parent
     del bpy.types.Scene.default_cell_template
+    del bpy.types.Scene.default_cell_material
     del bpy.types.Scene.C_cell_template
     del bpy.types.Scene.D_cell_template
     del bpy.types.Scene.E_cell_template

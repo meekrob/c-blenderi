@@ -90,7 +90,6 @@ class file_processing_panel(bpy.types.Panel):
     bl_context = "objectmode"
 
     def draw(self, context):
-        print("draw: dir(context)", dir(context), file=sys.stderr)
         #obj = bpy.context.scene.objects.get("embryo_parent")
         scene = bpy.context.scene
 
@@ -118,19 +117,20 @@ class file_processing_panel(bpy.types.Panel):
         row.prop_search(bpy.context.scene, "default_cell_template", bpy.context.scene, "objects", text="")
         scene = context.scene
 
-        #row = layout.row()
-        #row.label(text="Material template for cell types 1:")
-
-        #row = layout.row()
-        #row.prop_search(bpy.context.scene, "default_cell_material", bpy.data.materials, "materials", text="")
 
         #row = layout.row()
         #row.label(text="Material template for cell types 2:")
 
         #row = layout.row()
         #row.prop_search(bpy.types, "default_cell_material", bpy.types, "materials", text="")
+        #print("bpy.context.scene.default_cell_template:", context.scene.default_cell_template, file=sys.stderr)
+        #if context.scene.default_cell_template:
+        #print(context.scene.default_cell_template.data.materials.keys(), file=sys.stderr)
         row = layout.row()
-        row.prop(bpy.data, "default_cell_material")
+        row.label(text="Material template for cell types:")
+
+        row = layout.row()
+        row.prop_search(scene, "default_cell_material", bpy.data, "materials", text="")
 
         row = layout.row()
         split = row.split()
@@ -203,6 +203,7 @@ def register():
         description = "All added objects are parented to this object",
         poll = empty_check_function
     )
+
 
     main_blender_object.default_cell_template = bpy.props.PointerProperty(
         type=bpy.types.Object,

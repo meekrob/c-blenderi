@@ -35,11 +35,11 @@ class OBJECT_OT_epic(bpy.types.Operator):
 
         self.report(
             {'INFO'}, 
-            """Processing context.scene.epic_gs_filename: %s,
-bpy.types.Scene.embryo_parent: %s,
-bpy.types.Scene.default_cell_template: %s,
-bpy.types.Scene.default_cell_material: %s""" %     
-            (context.scene.epic_gs_filename, bpy.types.Scene.embryo_parent, bpy.types.Scene.default_cell_template, bpy.types.Scene.default_cell_material)
+            """Processing context.scene.epic_gs_filename: %s,\n
+context.scene.embryo_parent: %s,\n
+context.scene.default_cell_template: %s,\n
+context.scene.default_cell_material: %s""" %     
+            (context.scene.epic_gs_filename, context.scene.embryo_parent, context.scene.default_cell_template, context.scene.default_cell_material)
         )
         infilename = context.scene.epic_gs_filename
 
@@ -48,7 +48,9 @@ bpy.types.Scene.default_cell_material: %s""" %
             cell_template = bpy.data.objects.get( context.scene.default_cell_template )
         else:
             # add an object
-            pass
+            bpy.ops.mesh.primitive_uv_sphere_add(size=1, view_align=False, enter_editmode=False, location=(0, 0, 0), layers=layer_tuple())
+            context.scene.default_cell_template = context.object
+
 
         # process data
         min_time, max_time, big_data = trace_lineage.load_gs_epic_file(infilename)
@@ -256,7 +258,7 @@ def empty_check_function(self, obj):
     return obj.type == 'EMPTY'
 
 def material_check_function(self, obj):
-    return obj.type == 'MATERIAL'
+    return obj.type in ['SURFACE', 'WIRE', 'VOLUME', 'HALO'] # possible "material" types
 
 def unregister():
     bpy.utils.unregister_module(__name__)

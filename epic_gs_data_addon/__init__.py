@@ -29,16 +29,14 @@ class OBJECT_OT_epic(bpy.types.Operator):
         if context.scene.render.engine != 'CYCLES':
             context.scene.render.engine = 'CYCLES'
 
-        print("Running this shit: FILEPATH %s" % context.scene.epic_gs_filename)
         if context.scene.epic_gs_filename == '':
             self.report({'ERROR_INVALID_INPUT'}, "Need to specify a file")
             return {'CANCELLED'}
-
         self.report({'INFO'}, "Processing file: %s" % context.scene.epic_gs_filename)
         infilename = context.scene.epic_gs_filename
 
         # set up the scene
-        if context.scene.default_cell_template != "":
+        if context.scene.default_cell_template:
             cell_template = bpy.data.objects.get( context.scene.default_cell_template )
         else:
             # add an object
@@ -47,8 +45,6 @@ class OBJECT_OT_epic(bpy.types.Operator):
         # process data
         min_time, max_time, big_data = trace_lineage.load_gs_epic_file(infilename)
         return {'FINISHED'}
-
-        
 
 class OBJECT_OT_custompath(bpy.types.Operator):
     #bl_label = "Select epic.gs data file"

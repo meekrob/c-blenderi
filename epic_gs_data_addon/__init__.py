@@ -17,6 +17,25 @@ import sys
 
 from epic_gs_data_addon import trace_lineage
 
+def scale_value(inval):
+    MINV = 20000
+    MAXV = 90000
+    margin = MAXV - MINV
+    percent_max = (inval - MINV) / margin
+    return percent_max
+
+def select_only(obj):
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select = True
+    return obj
+
+def dup_obj_return_new(obj):
+    select_only(obj)
+    bpy.ops.object.duplicate() # the duplicate becomes the only selected object
+    new_obj = bpy.context.selected_objects[0]
+    return new_obj
+    
+
 class OBJECT_OT_epic(bpy.types.Operator):
     """Epic processing button"""
     bl_label = "Process file"
@@ -35,26 +54,70 @@ class OBJECT_OT_epic(bpy.types.Operator):
 
         self.report(
             {'INFO'}, 
-            """Processing context.scene.epic_gs_filename: %s,\n
-context.scene.embryo_parent: %s,\n
-context.scene.default_cell_template: %s,\n
-context.scene.default_cell_material: %s""" %     
+            """Processing context.scene.epic_gs_filename: %s,\n context.scene.embryo_parent: %s,\n context.scene.default_cell_template: %s,\n context.scene.default_cell_material: %s""" %     
             (context.scene.epic_gs_filename, context.scene.embryo_parent, context.scene.default_cell_template, context.scene.default_cell_material)
         )
         infilename = context.scene.epic_gs_filename
 
         # set up the scene
-        if context.scene.default_cell_template:
-            cell_template = bpy.data.objects.get( context.scene.default_cell_template )
-        else:
+        if not context.scene.default_cell_template:
             # add an object
             bpy.ops.mesh.primitive_uv_sphere_add(size=1, view_align=False, enter_editmode=False, location=(0, 0, 0), layers=layers_tuple())
             context.scene.default_cell_template = context.object
 
+        cell_template = bpy.data.objects.get( context.scene.default_cell_template.name )
+
+        print("context.scene.default_cell_template", context.scene.default_cell_template, file=sys.stderr)
+        print("cell_template", cell_template, file=sys.stderr)
+        print("context.scene.default_cell_material", context.scene.default_cell_material, file=sys.stderr)
 
         # process data
+        bpy.context.scene.frame_start = 1
+        bpy.context.scene.frame_end = 212
         min_time, max_time, big_data = trace_lineage.load_gs_epic_file(infilename)
-        return {'FINISHED'}
+        for celltype in trace_lineage.ALL_END_PNTS:
+            current_cell_type_char = ''
+            cell_type_char = celltype[0]
+            print("Doing", celltype, file=sys.stderr)
+            print("==============", file=sys.stderr)
+            #if celltype.startswith('C'):
+            if True:
+                new_cell = dup_obj_return_new(cell_template)
+                new_cell.name = celltype
+                new_mat = bpy.context.scene.default_cell_material.copy()
+                new_mat.name = celltype
+                new_cell.data.materials.append(new_mat)
+                do_thing(new_cell, celltype, min_time, max_time, big_data)
+            return {'FINISHED'}
+import time
+NTICKS = 4
+def do_thing(object, end_cell, min_time, max_time, big_data):
+    last_cell = ''
+    timer = time.time()
+    for timepnt, row, found_cell in trace_lineage.search_gs_epic_file([end_cell], min_time, max_time, big_data):
+        if found_cell != last_cell:
+            print("at cell division", str(timepnt) + ",", last_cell, "==>", found_cell, "in %.4f seconds" % (time.time() - timer), file=sys.stderr)
+            ticker = NTICKS
+            timer = time.time()
+        last_cell = found_cell
+        if not row:
+            continue
+        frame = timepnt *12
+        bpy.context.scene.frame_current = frame
+        object.location = (row['x']/100,row['y']/100,row['z']/10)
+        size = row['size']/200
+        object.scale = (size,size,size)
+        object.keyframe_insert('scale')
+        object.keyframe_insert('location')
+        # do something with the material
+        curMat = object.active_material
+        #if 'ecdf' in row:
+        if False:
+            if False:
+                curMat.node_tree.nodes['ColorRamp'].inputs[0].default_value = row['ecdf']
+            else:
+                curMat.node_tree.nodes['ColorRamp'].inputs[0].default_value = scale_value(row['value'])
+            curMat.node_tree.nodes['ColorRamp'].inputs[0].keyframe_insert("default_value", frame = frame )
 
 class OBJECT_OT_custompath(bpy.types.Operator):
     #bl_label = "Select epic.gs data file"

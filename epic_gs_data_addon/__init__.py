@@ -17,6 +17,24 @@ import sys
 
 from epic_gs_data_addon import trace_lineage
 
+def select_by_prefix(prefix):
+    for obj in bpy.context.scene.objects:
+        if obj.startswith(prefix): obj.select = True
+
+def assign_material_to_selected(material):
+    assign_material_to_objects(material, bpy.context.selected_objects)
+
+def assign_material_to_objects(material, objects):
+    for obj in objects:
+        obj.active_material = mat
+
+def assign_parent_to_selected(parent):
+    assign_parent_to_objects(parent, bpy.context.selected_objects)
+
+def assign_parent_to_objects(parent, objects):
+    for obj in objects:
+        obj.parent = parent
+
 def scale_value(inval):
     MINV = 20000
     MAXV = 90000
@@ -88,7 +106,7 @@ class OBJECT_OT_epic(bpy.types.Operator):
                 new_mat.name = celltype
                 new_cell.data.materials.append(new_mat)
                 do_thing(new_cell, celltype, min_time, max_time, big_data)
-            return {'FINISHED'}
+        return {'FINISHED'}
 import time
 NTICKS = 4
 def do_thing(object, end_cell, min_time, max_time, big_data):

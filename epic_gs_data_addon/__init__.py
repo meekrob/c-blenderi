@@ -96,33 +96,37 @@ class OBJECT_OT_epic(bpy.types.Operator):
         else:
             ms_cell_template = cell_template
 
-        print("context.scene.default_cell_template", context.scene.default_cell_template, file=sys.stderr)
-        print("cell_template", cell_template, file=sys.stderr)
-        print("context.scene.default_cell_material", context.scene.default_cell_material, file=sys.stderr)
+        if context.scene.P_cell_template:
+            p_cell_template = bpy.data.objects.get( context.scene.P_cell_template.name )
+        else:
+            p_cell_template = p_cell_template
 
         # process data
         bpy.context.scene.frame_start = 1
-        bpy.context.scene.frame_end = 212
+        bpy.context.scene.frame_end = 2000
         min_time, max_time, big_data = trace_lineage.load_gs_epic_file(infilename)
         for celltype in trace_lineage.ALL_END_PNTS:
             current_cell_type_char = ''
             cell_type_char = celltype[0]
             print("Doing", celltype, file=sys.stderr)
             print("==============", file=sys.stderr)
+            ### E cells
             if celltype.startswith('E'):
                 new_cell = dup_obj_return_new(e_cell_template)
-                #new_mat = bpy.context.scene.e_cell_material.copy()
                 new_mat = bpy.context.scene.e_cell_material
+            ### MS cells
             elif celltype.startswith('MS'):
                 new_cell = dup_obj_return_new(ms_cell_template)
-                #new_mat = bpy.context.scene.ms_cell_material.copy()
                 new_mat = bpy.context.scene.ms_cell_material
+            ### P --> Z cells
+            elif celltype.startswith('P') or celltype.startswith('Z'):
+                new_cell = dup_obj_return_new(p_cell_template)
+                new_mat = bpy.context.scene.p_cell_material
             else:
                 new_cell = dup_obj_return_new(cell_template)
-                #new_mat = bpy.context.scene.default_cell_material.copy()
                 new_mat = bpy.context.scene.default_cell_material
+
             new_cell.name = celltype
-            #new_mat.name = celltype
             new_cell.active_material = new_mat
             do_thing(new_cell, celltype, min_time, max_time, big_data)
         return {'FINISHED'}
@@ -227,37 +231,47 @@ class file_processing_panel(bpy.types.Panel):
         row = layout.row()
         row.label(text="Object template for cell types:")
 
+        # default
         row = layout.row()
         split = row.split()
         col = split.column()
         col.label(text="Mesh template")
         col.prop_search(bpy.context.scene, "default_cell_template", bpy.context.scene, "objects", text="")
-
         col = split.column()
         col.label(text="Material template")
         col.prop_search(scene, "default_cell_material", bpy.data, "materials", text="")
 
+        # E cell row
         row = layout.row()
         split = row.split()
-
         col = split.column()
-
         col.label(text="E cell:")
         col.prop(bpy.context.scene, "E_cell_template", text="")
-
+        col = split.column()
         col.label(text="E cell material")
         col.prop_search(scene, "e_cell_material", bpy.data, "materials", text="")
 
+        # MS cell row
         row = layout.row()
         split = row.split()
-
         col = split.column()
         col.label(text="MS cell:")
         col.prop_search(bpy.context.scene, "MS_cell_template", bpy.context.scene, "objects", text="")
-
+        col = split.column()
         col.label(text="MS cell material")
         col.prop_search(scene, "ms_cell_material", bpy.data, "materials", text="")
 
+        # P/Z cell row
+        row = layout.row()
+        split = row.split()
+        col = split.column()
+        col.label(text="P/Z cells:")
+        col.prop_search(bpy.context.scene, "P_cell_template", bpy.context.scene, "objects", text="")
+        col = split.column()
+        col.label(text="P/Z cell material")
+        col.prop_search(scene, "p_cell_material", bpy.data, "materials", text="")
+
+        # Functions
         row = layout.row()
         row.label(text="Operations:")
         row = layout.row()
@@ -344,8 +358,8 @@ def register():
     )
     main_blender_object.P_cell_template = bpy.props.PointerProperty(
         type=bpy.types.Object,
-        name = "P Cell Object template",
-        description = "This object will be cloned to produce all of the P cells in the data file",
+        name = "P-->Z Cell Object template",
+        description = "This object will be cloned to produce all of the P and Z cells in the data file",
         poll = mesh_check_function
 
     )
@@ -367,6 +381,13 @@ def register():
         type=bpy.types.Material,
         name = "E cell material",
         description = "This material will be assigned to all E cells",
+        poll = material_check_function
+    )
+
+    main_blender_object.p_cell_material = bpy.props.PointerProperty(
+        type=bpy.types.Material,
+        name = "P/Z cell material",
+        description = "This material will be assigned to all P and Z cells",
         poll = material_check_function
     )
 
@@ -393,14 +414,21 @@ def unregister():
     bpy.types.INFO_MT_mesh_add.remove(process_epic_gs_button)
     del bpy.types.Scene.epic_gs_filename
     del bpy.types.Scene.embryo_parent
+
     del bpy.types.Scene.default_cell_template
     del bpy.types.Scene.default_cell_material
+
     del bpy.types.Scene.C_cell_template
     del bpy.types.Scene.D_cell_template
+
     del bpy.types.Scene.E_cell_template
     del bpy.types.Scene.e_cell_material
+
     del bpy.types.Scene.MS_cell_template
     del bpy.types.Scene.ms_cell_material
+
+    del bpy.types.Scene.P_cell_template
+    del bpy.types.Scene.p_cell_material
 
 if __name__ == "__main__":
     register()

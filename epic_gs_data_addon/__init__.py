@@ -53,6 +53,7 @@ def dup_obj_return_new(obj):
     new_obj = bpy.context.selected_objects[0]
     return new_obj
     
+DIVISIONS_ONLY = True
 
 class OBJECT_OT_epic(bpy.types.Operator):
     """Epic processing button"""
@@ -85,6 +86,16 @@ class OBJECT_OT_epic(bpy.types.Operator):
 
         cell_template = bpy.data.objects.get( context.scene.default_cell_template.name )
 
+        if context.scene.E_cell_template:
+            e_cell_template = bpy.data.objects.get( context.scene.E_cell_template.name )
+        else:
+            e_cell_template = cell_template
+    
+        if context.scene.MS_cell_template:
+            ms_cell_template = bpy.data.objects.get( context.scene.MS_cell_template.name )
+        else:
+            ms_cell_template = cell_template
+
         print("context.scene.default_cell_template", context.scene.default_cell_template, file=sys.stderr)
         print("cell_template", cell_template, file=sys.stderr)
         print("context.scene.default_cell_material", context.scene.default_cell_material, file=sys.stderr)
@@ -98,25 +109,41 @@ class OBJECT_OT_epic(bpy.types.Operator):
             cell_type_char = celltype[0]
             print("Doing", celltype, file=sys.stderr)
             print("==============", file=sys.stderr)
-            #if celltype.startswith('C'):
-            if True:
+            if celltype.startswith('E'):
+                new_cell = dup_obj_return_new(e_cell_template)
+                #new_mat = bpy.context.scene.e_cell_material.copy()
+                new_mat = bpy.context.scene.e_cell_material
+            elif celltype.startswith('MS'):
+                new_cell = dup_obj_return_new(ms_cell_template)
+                #new_mat = bpy.context.scene.ms_cell_material.copy()
+                new_mat = bpy.context.scene.ms_cell_material
+            else:
                 new_cell = dup_obj_return_new(cell_template)
-                new_cell.name = celltype
-                new_mat = bpy.context.scene.default_cell_material.copy()
-                new_mat.name = celltype
-                new_cell.data.materials.append(new_mat)
-                do_thing(new_cell, celltype, min_time, max_time, big_data)
+                #new_mat = bpy.context.scene.default_cell_material.copy()
+                new_mat = bpy.context.scene.default_cell_material
+            new_cell.name = celltype
+            #new_mat.name = celltype
+            new_cell.active_material = new_mat
+            do_thing(new_cell, celltype, min_time, max_time, big_data)
         return {'FINISHED'}
 import time
 NTICKS = 4
+
 def do_thing(object, end_cell, min_time, max_time, big_data):
     last_cell = ''
     timer = time.time()
     for timepnt, row, found_cell in trace_lineage.search_gs_epic_file([end_cell], min_time, max_time, big_data):
+        print("at cell division", str(timepnt) + ",", last_cell, "==>", found_cell, "in %.4f seconds" % (time.time() - timer), file=sys.stderr)
+        in_a_cell_division = False
+
         if found_cell != last_cell:
-            print("at cell division", str(timepnt) + ",", last_cell, "==>", found_cell, "in %.4f seconds" % (time.time() - timer), file=sys.stderr)
+            print("=========== AT CELL DIVISION ===========", file=sys.stderr)
             ticker = NTICKS
             timer = time.time()
+            in_a_cell_division = True
+
+        if not in_a_cell_division:
+            continue
         last_cell = found_cell
         if not row:
             continue
@@ -210,29 +237,26 @@ class file_processing_panel(bpy.types.Panel):
         col.label(text="Material template")
         col.prop_search(scene, "default_cell_material", bpy.data, "materials", text="")
 
-        """
         row = layout.row()
         split = row.split()
 
         col = split.column()
-        col.label(text="C cell:")
-        col.prop_search(bpy.context.scene, "C_cell_template", bpy.context.scene, "objects", text="")
 
-        col = split.column()
-        col.label(text="D cell:")
-        col.prop_search(bpy.context.scene, "D_cell_template", bpy.context.scene, "objects", text="")
-
-        row = layout.row()
-        split = row.split()
-
-        col = split.column()
         col.label(text="E cell:")
         col.prop(bpy.context.scene, "E_cell_template", text="")
 
+        col.label(text="E cell material")
+        col.prop_search(scene, "e_cell_material", bpy.data, "materials", text="")
+
+        row = layout.row()
+        split = row.split()
+
         col = split.column()
-        col.label(text="P cell:")
-        col.prop_search(bpy.context.scene, "P_cell_template", bpy.context.scene, "objects", text="")
-        """
+        col.label(text="MS cell:")
+        col.prop_search(bpy.context.scene, "MS_cell_template", bpy.context.scene, "objects", text="")
+
+        col.label(text="MS cell material")
+        col.prop_search(scene, "ms_cell_material", bpy.data, "materials", text="")
 
         row = layout.row()
         row.label(text="Operations:")
@@ -312,6 +336,12 @@ def register():
         description = "This object will be cloned to produce all of the E cells in the data file",
         poll = mesh_check_function
     )
+    main_blender_object.MS_cell_template = bpy.props.PointerProperty(
+        type=bpy.types.Object,
+        name = "MS Cell Object template",
+        description = "This object will be cloned to produce all of the MS cells in the data file",
+        poll = mesh_check_function
+    )
     main_blender_object.P_cell_template = bpy.props.PointerProperty(
         type=bpy.types.Object,
         name = "P Cell Object template",
@@ -323,6 +353,20 @@ def register():
         type=bpy.types.Material,
         name = "Default cell material",
         description = "This material will be assigned to all cells",
+        poll = material_check_function
+    )
+
+    main_blender_object.e_cell_material = bpy.props.PointerProperty(
+        type=bpy.types.Material,
+        name = "E cell material",
+        description = "This material will be assigned to all E cells",
+        poll = material_check_function
+    )
+
+    main_blender_object.ms_cell_material = bpy.props.PointerProperty(
+        type=bpy.types.Material,
+        name = "E cell material",
+        description = "This material will be assigned to all E cells",
         poll = material_check_function
     )
 
@@ -354,7 +398,9 @@ def unregister():
     del bpy.types.Scene.C_cell_template
     del bpy.types.Scene.D_cell_template
     del bpy.types.Scene.E_cell_template
-    del bpy.types.Scene.P_cell_template
+    del bpy.types.Scene.e_cell_material
+    del bpy.types.Scene.MS_cell_template
+    del bpy.types.Scene.ms_cell_material
 
 if __name__ == "__main__":
     register()

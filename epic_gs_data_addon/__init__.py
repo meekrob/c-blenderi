@@ -17,6 +17,9 @@ import sys
 
 from epic_gs_data_addon import trace_lineage
 
+def set_active_object(obj, context=bpy.context):
+    context.scene.objects.active = obj
+
 def select_by_prefix(prefix):
     for obj in bpy.context.scene.objects:
         if obj.startswith(prefix): obj.select = True
@@ -132,6 +135,12 @@ class OBJECT_OT_epic(bpy.types.Operator):
             new_cell.parent = context.scene.embryo_parent
             new_cell.active_material = new_mat
             do_thing(new_cell, celltype, min_time, max_time, big_data, key_divisions_only)
+
+        # set active object to parent
+        if context.scene.embryo_parent:
+           set_active_object( context.scene.embryo_parent )
+           select_only( context.scene.embryo_parent )
+
         return {'FINISHED'}
 import time
 NTICKS = 4
@@ -140,17 +149,17 @@ def do_thing(object, end_cell, min_time, max_time, big_data, key_divisions_only 
     last_cell = ''
     timer = time.time()
     for timepnt, row, found_cell in trace_lineage.search_gs_epic_file([end_cell], min_time, max_time, big_data):
-        print("at cell division", str(timepnt) + ",", last_cell, "==>", found_cell, "in %.4f seconds" % (time.time() - timer), file=sys.stderr)
+        print("%s: at cell division" % end_cell, str(timepnt) + ",", last_cell, "==>", found_cell, "in %.4f seconds" % (time.time() - timer), file=sys.stderr)
         in_a_cell_division = False
 
         if found_cell != last_cell:
-            print("=========== AT CELL DIVISION ===========", file=sys.stderr)
+            print("%s: =========== AT CELL DIVISION ===========" % end_cell, file=sys.stderr)
             ticker = NTICKS
             timer = time.time()
             in_a_cell_division = True
 
         if key_divisions_only and not in_a_cell_division:
-            print("=========== key_divisions_only %s, in_a_cell_division %s. continuing ===========" % (key_divisions_only,in_a_cell_division), file=sys.stderr)
+            print("%s: =========== key_divisions_only %s, in_a_cell_division %s. continuing ===========" % (end_cell, key_divisions_only,in_a_cell_division), file=sys.stderr)
             continue
         last_cell = found_cell
         if not row:

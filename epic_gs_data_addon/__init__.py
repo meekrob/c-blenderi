@@ -77,6 +77,8 @@ class OBJECT_OT_epic(bpy.types.Operator):
             (context.scene.epic_gs_filename, context.scene.embryo_parent, context.scene.default_cell_template, context.scene.default_cell_material)
         )
         infilename = context.scene.epic_gs_filename
+        # key the cell divisions only
+        key_divisions_only = context.scene.key_divisions_only
 
         # set up the scene
         if not context.scene.default_cell_template:
@@ -127,13 +129,14 @@ class OBJECT_OT_epic(bpy.types.Operator):
                 new_mat = bpy.context.scene.default_cell_material
 
             new_cell.name = celltype
+            new_cell.parent = context.scene.embryo_parent
             new_cell.active_material = new_mat
-            do_thing(new_cell, celltype, min_time, max_time, big_data)
+            do_thing(new_cell, celltype, min_time, max_time, big_data, key_divisions_only)
         return {'FINISHED'}
 import time
 NTICKS = 4
 
-def do_thing(object, end_cell, min_time, max_time, big_data):
+def do_thing(object, end_cell, min_time, max_time, big_data, key_divisions_only = True):
     last_cell = ''
     timer = time.time()
     for timepnt, row, found_cell in trace_lineage.search_gs_epic_file([end_cell], min_time, max_time, big_data):
@@ -146,7 +149,8 @@ def do_thing(object, end_cell, min_time, max_time, big_data):
             timer = time.time()
             in_a_cell_division = True
 
-        if not in_a_cell_division:
+        if key_divisions_only and not in_a_cell_division:
+            print("=========== key_divisions_only %s, in_a_cell_division %s. continuing ===========" % (key_divisions_only,in_a_cell_division), file=sys.stderr)
             continue
         last_cell = found_cell
         if not row:
@@ -221,6 +225,10 @@ class file_processing_panel(bpy.types.Panel):
 
         row = layout.row()
         row.label(text="Setup:")
+
+        row = layout.row()
+        row.label(text="Smooth animation")
+        row.prop(bpy.context.scene, "key_divisions_only", text="")
 
         # empty parent for everything
         row = layout.row()
@@ -307,15 +315,19 @@ def register():
         )
         bpy.context.object.name = "embryo_parent"
     """
+    bpy.types.Scene.key_divisions_only = bpy.props.BoolProperty(
+        name = "Key Divisions Only",
+        default = True,
+        description = "Only insert keyframes at divisions (smoother animation)"
+    )
 
     bpy.types.Scene.epic_gs_filename = bpy.props.StringProperty(
         name = "Epic filename",
         default = "",
         description = "Epic gs name"
     )
-    main_blender_object = bpy.types.Scene
 
-    main_blender_object.embryo_parent = bpy.props.PointerProperty(
+    bpy.types.Scene.embryo_parent = bpy.props.PointerProperty(
         type=bpy.types.Object,
         name = "Embryo object parent",
         description = "All added objects are parented to this object",
@@ -323,68 +335,68 @@ def register():
     )
 
 
-    main_blender_object.default_cell_template = bpy.props.PointerProperty(
+    bpy.types.Scene.default_cell_template = bpy.props.PointerProperty(
         type=bpy.types.Object,
         name = "Default object to use for all cells",
         description = "This object will be cloned to produce any cells",
         poll = mesh_check_function
     )
 
-    main_blender_object.C_cell_template = bpy.props.PointerProperty(
+    bpy.types.Scene.C_cell_template = bpy.props.PointerProperty(
         type=bpy.types.Object,
         name = "C Cell Object template",
         description = "This object will be cloned to produce all of the C cells in the data file",
         poll = mesh_check_function
 
     )
-    main_blender_object.D_cell_template = bpy.props.PointerProperty(
+    bpy.types.Scene.D_cell_template = bpy.props.PointerProperty(
         type=bpy.types.Object,
         name = "D Cell Object template",
         description = "This object will be cloned to produce all of the D cells in the data file",
         poll = mesh_check_function
 
     )
-    main_blender_object.E_cell_template = bpy.props.PointerProperty(
+    bpy.types.Scene.E_cell_template = bpy.props.PointerProperty(
         type=bpy.types.Object,
         name = "E Cell Object template",
         description = "This object will be cloned to produce all of the E cells in the data file",
         poll = mesh_check_function
     )
-    main_blender_object.MS_cell_template = bpy.props.PointerProperty(
+    bpy.types.Scene.MS_cell_template = bpy.props.PointerProperty(
         type=bpy.types.Object,
         name = "MS Cell Object template",
         description = "This object will be cloned to produce all of the MS cells in the data file",
         poll = mesh_check_function
     )
-    main_blender_object.P_cell_template = bpy.props.PointerProperty(
+    bpy.types.Scene.P_cell_template = bpy.props.PointerProperty(
         type=bpy.types.Object,
         name = "P-->Z Cell Object template",
         description = "This object will be cloned to produce all of the P and Z cells in the data file",
         poll = mesh_check_function
 
     )
-    main_blender_object.default_cell_material = bpy.props.PointerProperty(
+    bpy.types.Scene.default_cell_material = bpy.props.PointerProperty(
         type=bpy.types.Material,
         name = "Default cell material",
         description = "This material will be assigned to all cells",
         poll = material_check_function
     )
 
-    main_blender_object.e_cell_material = bpy.props.PointerProperty(
+    bpy.types.Scene.e_cell_material = bpy.props.PointerProperty(
         type=bpy.types.Material,
         name = "E cell material",
         description = "This material will be assigned to all E cells",
         poll = material_check_function
     )
 
-    main_blender_object.ms_cell_material = bpy.props.PointerProperty(
+    bpy.types.Scene.ms_cell_material = bpy.props.PointerProperty(
         type=bpy.types.Material,
         name = "E cell material",
         description = "This material will be assigned to all E cells",
         poll = material_check_function
     )
 
-    main_blender_object.p_cell_material = bpy.props.PointerProperty(
+    bpy.types.Scene.p_cell_material = bpy.props.PointerProperty(
         type=bpy.types.Material,
         name = "P/Z cell material",
         description = "This material will be assigned to all P and Z cells",
@@ -412,6 +424,9 @@ def unregister():
     #bpy.utils.unregister_class(OBJECT_OT_custompath)
     #bpy.utils.unregister_class(file_processing_panel)
     bpy.types.INFO_MT_mesh_add.remove(process_epic_gs_button)
+
+    del bpy.types.Scene.key_divisions_only
+
     del bpy.types.Scene.epic_gs_filename
     del bpy.types.Scene.embryo_parent
 

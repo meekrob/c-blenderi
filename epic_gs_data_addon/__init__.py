@@ -138,7 +138,7 @@ class OBJECT_OT_epic(bpy.types.Operator):
 
         # set active object to parent
         if context.scene.embryo_parent:
-           set_active_object( context.scene.embryo_parent )
+           set_active_object( context.scene.embryo_parent, context )
            select_only( context.scene.embryo_parent )
 
         return {'FINISHED'}
@@ -149,22 +149,43 @@ def do_thing(object, end_cell, min_time, max_time, big_data, key_divisions_only 
     last_cell = ''
     timer = time.time()
     for timepnt, row, found_cell in trace_lineage.search_gs_epic_file([end_cell], min_time, max_time, big_data):
+        frame = timepnt *12
         print("%s: at cell division" % end_cell, str(timepnt) + ",", last_cell, "==>", found_cell, "in %.4f seconds" % (time.time() - timer), file=sys.stderr)
-        in_a_cell_division = False
 
+        synchronize = False
+        if frame % 512 == 0: 
+            synchronize = True
+        if timepnt == max_time:
+            synchronize = True
+
+        # cell divisions determined by "found_cell" being different from the last iteration, since it traverses a lineage tree in the search
+        in_a_cell_division = False
         if found_cell != last_cell:
             print("%s: =========== AT CELL DIVISION ===========" % end_cell, file=sys.stderr)
             ticker = NTICKS
             timer = time.time()
             in_a_cell_division = True
 
-        if key_divisions_only and not in_a_cell_division:
-            print("%s: =========== key_divisions_only %s, in_a_cell_division %s. continuing ===========" % (end_cell, key_divisions_only,in_a_cell_division), file=sys.stderr)
+        # always insert keyframes at synchronization points
+        if synchronize:
+            print("%s: =========== key_divisions_only %s, in_a_cell_division %s. SYNCHRONIZING ===========" 
+                        % (end_cell, key_divisions_only, in_a_cell_division), 
+                        file=sys.stderr
+            )
+            pass
+        # skip intermediate keyframes
+        elif key_divisions_only and not in_a_cell_division:
+            print("%s: =========== key_divisions_only %s, in_a_cell_division %s. continuing ===========" 
+                        % (end_cell, key_divisions_only, in_a_cell_division), 
+                        file=sys.stderr
+            )
             continue
+
+
         last_cell = found_cell
-        if not row:
-            continue
-        frame = timepnt *12
+
+        if not row: continue
+
         bpy.context.scene.frame_current = frame
         object.location = (row['x']/100,row['y']/100,row['z']/10)
         size = row['size']/200

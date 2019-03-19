@@ -15,21 +15,61 @@ from bpy.props import StringProperty
 from bpy.props import CollectionProperty
 import sys
 
+from mathutils import Vector
+
 from epic_gs_data_addon import trace_lineage
+
+def find_cell_or_parent(cellname):
+    while bpy.data.objects.find(cellname) < 0:
+        cellname = cellname[:-1]
+        if not cellname:
+            return -1
+
+    return bpy.data.objects.find(cellname)
+
+# mball elements #######
+##object as returned by mball.elements.new: 
+##------------------------
+##e.g.
+#mball= bpy.data.metaballs.new("name")
+#el = mball.elements.new()
+
+def mball_el_translate_x(el, x):
+    mball_translate(el,Vector((x,0,0)))
+
+def mball_el_translate_y(el, y):
+    mball_translate(el,Vector((0,y,0)))
+
+def mball_el_translate_z(el, z):
+    mball_translate(el,Vector((0,0,z)))
+
+def mball_el_translate(el, vec):
+    el.co = el.co + vec
+
+# mball elements #######
+
+def swap_obj_locations(obj1, obj2):
+    loc = obj1.location.copy()
+    obj1.location = obj2.location
+    obj2.location = loc
 
 def set_active_object(obj, context=bpy.context):
     context.scene.objects.active = obj
 
+def select_only_and_make_active(obj,  context=bpy.context):
+    set_active_object(obj, context)
+    select_only(obj)
+
 def select_by_prefix(prefix):
     for obj in bpy.context.scene.objects:
-        if obj.startswith(prefix): obj.select = True
+        if obj.name.startswith(prefix): obj.select = True
 
 def assign_material_to_selected(material):
     assign_material_to_objects(material, bpy.context.selected_objects)
 
 def assign_material_to_objects(material, objects):
     for obj in objects:
-        obj.active_material = mat
+        obj.active_material = material
 
 def assign_parent_to_selected(parent):
     assign_parent_to_objects(parent, bpy.context.selected_objects)

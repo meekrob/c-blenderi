@@ -4,13 +4,14 @@ import bpy
 def CreateLineageTracker( tips ):
     tree_nodes = Lineage.build_tree_from_tips( tips )
     root = Lineage.get_root( tree_nodes )
-    return LineageTracker(tree_nodes, root['name'])
+    return LineageTracker(tree_nodes, root['name'], root)
 
 class LineageTracker:
     # persistant object wrapper around the static methods
-    def __init__(self, tree_nodes, current=None):
+    def __init__(self, tree_nodes, current=None, tree=None):
         self.tree_nodes = tree_nodes
         self.current = current
+        self.root = tree
 
     def set(self, node_str):
         if node_str in self.tree_nodes:
@@ -53,31 +54,50 @@ class Lineage:
         return nodes
 
     def recursively_link_parents(child_node, nodes):
+            node_dict = ",".join(nodes.keys())
+            print("\n= ENTER ================= ========================", file=sys.stderr) 
+            print("Lineage.recursively_link_parents( <%s>, {%s})" % (child_node['name'], node_dict), file=sys.stderr)
 
-            print("child_node", child_node['name'], file=sys.stderr)
 
             parent_cell_name = Lineage.get_parent_name( child_node['name'] )
+            print("child_node %s parent? %s" % (child_node['name'], parent_cell_name), file=sys.stderr)
 
             # stop at the top
-            if parent_cell_name is None: return
+            if parent_cell_name is None: 
+                print("============= RETURN ===============>", file=sys.stderr)
+                return
                 
             # create parent, unless sibling has already done so
             if parent_cell_name not in nodes:
+                print("CREATE NODE:", parent_cell_name, file=sys.stderr)
                 nodes[parent_cell_name] = { 'name': parent_cell_name, 'parent': None, 'children': [] }
+            else:
+                names = [child['name'] for child in nodes[parent_cell_name]['children']]
+                print("PARENT EXISTS:", parent_cell_name, str(names), file=sys.stderr)
+
+            node_dict = ",".join(nodes.keys())
+            print("node_dict:", '{' + node_dict + '}', file=sys.stderr)
 
             child_node['parent'] = nodes[parent_cell_name]
-            if False:
-                try:
-                    if child_node not in child_node['parent']['children']:
-                        child_node['parent']['children'].append( child_node )
-                except RecursionError as re:
-                    print("Maximum recursion exceeded on child_node (%s)" % child_node, file=sys.stderr)
-                    raise re
-            else:
-                if child_node not in child_node['parent']['children']:
+            try:
+                names = [child['name'] for child in child_node['parent']['children']]
+                if child_node['name'] not in names:
+                #if child_node not in child_node['parent']['children']:
+                    #names = [child['name'] for child in child_node['parent']['children']]
                     child_node['parent']['children'].append( child_node )
+                    new_names = [child['name'] for child in child_node['parent']['children']]
+                    print(child_node['name'], "not in %s['children']:" % parent_cell_name, str(names), "=>", str(new_names), file=sys.stderr)
+            except RecursionError as re:
+                names = [child['name'] for child in child_node['parent']['children']]
+                print("Maximum recursion exceeded on child_node (name:%s) in" % child_node['name'], str(names), file=sys.stderr)
+                Lineage.print_tree(child_node)
+                raise re
 
             # do grandparent
+            node_dict = ",".join(nodes.keys())
+            print("Lineage.recursively_link_parents(child_node['parent'], nodes)", file=sys.stderr)
+            print("Lineage.recursively_link_parents( <%s>, {%s})" % (child_node['parent']['name'], node_dict), file=sys.stderr)
+            print("============= Recurse ===============>", file=sys.stderr)
             Lineage.recursively_link_parents(child_node['parent'], nodes)
 
     def print_tree(root, depth=0):
@@ -257,6 +277,11 @@ class Cell:
         # its material and texture properties to be set individually
         return
 
+from mathutils import Vector
+
 if __name__ == '__main__':
     P0 = CreateLineageTracker(['Ea', 'D'])
+    Lineage.print_tree(P0.root)
     P0_cell = Cell.spawn(P0, bpy.context.scene)
+
+    P0_cell.move_to( Vector((0,0,1)) )

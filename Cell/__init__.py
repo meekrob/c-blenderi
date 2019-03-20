@@ -297,12 +297,12 @@ if __name__ == '__main__':
 
     bpy.context.scene.frame_current = 24
     left_child, right_child = P0_cell.start_mitosis()
-    if left_child:
-        left_child.move_to( Vector((0,1,2)) )
-    if right_child:
-        right_child.move_to( Vector((0,0,2)) )
+    #if left_child:
+        #left_child.move_to( Vector((0,1,2)) )
+    #if right_child:
+        #right_child.move_to( Vector((0,0,2)) )
 
-    bpy.context.scene.frame_current = 48
+    bpy.context.scene.frame_current = 128
     if left_child:
         left_child.move_to( Vector((5,1,2)) )
     if right_child:

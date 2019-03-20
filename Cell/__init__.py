@@ -1,8 +1,45 @@
 import sys
-# blender modules
-#import bpy
-#import mathutils
+import bpy
 
+def CreateLineageTracker( tips ):
+    tree_nodes = Lineage.build_tree_from_tips( tips )
+    root = Lineage.get_root( tree_nodes )
+    return new LineageTracker(tree_nodes, root['name'])
+
+class LineageTracker():
+    # persistant object wrapper around the static methods
+    def __init__(self, tree_nodes, current=None):
+        self.tree_nodes = tree_nodes
+        self.current = current
+
+    def set(self, node_str):
+        if node_str in self.tree_nodes:
+            self.current = node_str
+        else:
+            raise "KeyError"
+
+    def __str__(self):
+        return self.current
+
+    def get_parent(self):
+        return Lineage.get_parent(self.current, self.tree_nodes)
+
+    def get_child_names(self):
+        return Lineage.get_child_names(self.current, self.tree_nodes)        
+
+    def get_children(self):
+        names = Lineage.get_child_names(self.current, self.tree_nodes)
+        pointers = []
+        for name in names:
+            pointer = self.clone_pointer
+            pointer.set(name)
+            pointers.append(pointer)
+
+        return pointers
+
+    def clone_pointer(self):
+        return new LineageTracker(self.tree_nodes, self.current)
+        
 # static
 class Lineage:
     def build_tree_from_tips( tips ):
@@ -94,66 +131,124 @@ class Lineage:
         # ARE one letter shorter
         return celltype[:-1]
 
+
+class Cell_Datum:
+    def __init__(self, cellname, obj, mball, mball_el):
+        self.cellname = self.cellname
+        self.obj = obj
+        self.mball = mball
+        self.mball_el = mball_el
+    def copy(self):
+        return new Cell_Datum(self.cellname, self.obj, self.mball, self.mball_el)
+
+    # static utils
+    def debut_obj_copy_at_current_frame(new_name, obj_template, mball, scene):
+        current_frame = scene.frame_current
+        obj = bpy.data.objects.new(new_name, mball)
+        # objects are kept at origin, don't set location
+        obj.hide = False
+        obj.keyframe_insert("hide")
+        scene.frame_current = 1
+        obj.hide = True
+        obj.keyframe_insert("hide")
+        scene.frame_current = current_frame
+        return obj
+
+    def debut_el_copy_at_current_frame(el_template, mball, scene):
+        current_frame = scene.frame_current
+
+        el = mball.elements.new()
+        el.co = el_template.co.copy()
+        el.keyframe_insert("co")
+        el.hide = False
+        el.keyframe_insert("hide")
+        scene.frame_current = 1
+        el.hide = True
+        el.keyframe_insert("hide")
+        scene.frame_current = current_frame
+
+        return el
+
 class Cell:
-    def __init__(self, cellname, scene, initial_position, insert_keyframes=False):
-        # initialize base objects
-        self.nucleus_mball = bpy.data.metaballs.new(cellname + "_nuc_mball")
-        self.membrane_mball = bpy.data.metaballs.new(cellname + "_mem_mball")
-        self.nucleus_obj = bpy.data.objects.new(cellname + "_nuc_obj")
-        self.membrane_obj = bpy.data.objects.new(cellname + "_mem_obj")
-        # link objects to scene
-        scene.objects.link(self.nucleus_obj)
-        scene.objects.link(self.membrane_obj)
-        # create metaball elements
-        self.nucleus_left = self.nucleus_mball.elements.new()
-        self.nucleus_right = self.nucleus_mball.elements.new()
-        self.membrane_left = self.membrane_mball.elements.new()
-        self.membrane_right = self.membrane_mball.elements.new()
-        # sizing?
+    def spawn(cellname, scene):
+        # nucleus
+        mball = bpy.data.metaballs.new(cellname + "_nuc")
+        obj = bpy.data.objects.new(cellname + "_nuc")
+        scene.objects.link(obj)
+        mball.resolution = 0.16
+        mball.render_resolution = 0.1
+        el = mball.elements.new()
+        el.radius = 2
+        nuc_data = new Cell_Datum(cellname, obj, mball, el)
+        # membrane
+        mball = bpy.data.metaballs.new(cellname + "_mem")
+        obj = bpy.data.objects.new(cellname + "_mem")
+        scene.objects.link(obj)
+        mball.resolution = 0.16
+        mball.render_resolution = 0.1
+        el = mball.elements.new()
+        el.radius = 4
+        mem_data = new Cell_Datum(cellname, obj, mball, el)
+        
+        # make a Cell
+        return new Cell(cellname, scene, nuc_data, mem_data)
+        
+    def __init__(self, cellname, scene, nucleus_datum, membrane_datum)
+        self.cellname = self.cellname
+        self.scene = scene 
+        self.nucleus = nucleus_datum
+        self.membrane = membrane_datum
+        
+        self.nucleus_mball = nucleus_mball
+        self.membrane_mball = membrane_mball
+        self.nucleus_el = nucleus_el
+        self.membrane_el = membrane_el
+        self.nucleus_obj = nucleus_obj
+        self.membrane_obj = membrane_obj
 
-        # positioning
-        self.position_left(initial_position)
-        self.position_right(initial_position)
+    def move_to(self, vec, insert_keyframes=True):
+        self.membrane_el.co = vec
+        self.nucleus_el.co = vec
         if insert_keyframes:
-            self.key_left_co()
-            self.key_right_co()
-    
-    # Position nuclei and membranes together
-    def position_and_key_left(self, vec):
-        self.position_left(vec)
-        self.key_left_co()
-    def position_and_key_right(self, vec):
-        self.position_right(vec)
-        self.key_right_co()
-    # assign
-    def position_left(self, vec):
-        self.membrane_left.co = vec
-        self.nucleus_left.co = vec
-    def position_right(self, vec):
-        self.membrane_right.co = vec
-        self.nucleus_right.co = vec
-    # key
-    def key_left_co(self):
-        self.membrane_left.keyframe_insert("co")
-        self.nucleus_left.keyframe_insert("co")
-    def key_right_co(self):
-        self.membrane_right.keyframe_insert("co")
-        self.nucleus_right.keyframe_insert("co")
+            self.membrane_el.keyframe_insert("co")
+            self.nucleus_el.keyframe_insert("co")
 
-    # Visibility
-    #  hide: assign+key 
-    def key_left_hide(self, hide=True):
-        self.membrane_left.hide = hide
-        self.membrane_left.keyframe_insert("hide")
-        self.nucleus_left.hide = hide
-        self.nucleus_left.keyframe_insert("hide")
-    def key_right_hide(self, hide=True):
-        self.membrane_right.hide = hide
-        self.membrane_right.keyframe_insert("hide")
-        self.nucleus_right.hide = hide
-        self.nucleus_right.keyframe_insert("hide")
-    #  show: assign+key 
-    def key_left_show(self):
-        self.key_left_hide(False)
-    def key_right_show(self):
-        self.key_right_hide(False)
+    def start_mitosis(self):
+        leftCell = None
+        rightCell = None
+        # Duplicate geometry, and return new Cell objects that encapsulate the children of the current cell.
+        # They will still share the same base metaballs so they can separate in a smooth manner. Object naming 
+        # will change stay the same for parent to represent child1, and parent.child2 will be added, with its visibility hidden until the current frame
+        child_names = self.cellname.get_children()
+
+        if len(child_names) > 0:
+            nucleus_left = self.nucleus
+            membrane_left = self.membrane
+            cell_left_name = child_names[0]
+            leftCell = new Cell(cell_left_name, self.scene, nucleus_left, membrane_left)
+
+        if len(child_names) > 1:
+            nucleus_right = self.nucleus.copy()
+            membrane_right = self.membrane.copy()
+            cell_right_name = child_names[1] 
+
+            # debut new mesh elements for "right"
+            nucleus_right.mball_el = Cell_Datum.debut_el_copy_at_current_frame( nucleus_left.mball_el, nucleus_left.mball, self.scene )
+            membrane_right.mball_el = Cell_Datum.debut_el_copy_at_current_frame( membrane_left.mball_el, membrane_left.mball, self.scene )
+
+            # make new objects for "right"
+            nucleus_right.obj = Cell_Datum.debut_obj_copy_at_current_frame(cell_right_name + "_nuc", nucleus_right.obj, nucleus_right.mball, scene)
+            membrane_right.obj = Cell_Datum.debut_obj_copy_at_current_frame(cell_right_name + "_mem", membrane_right.obj, membrane_right.mball, scene)
+            rightCell = new Cell(cell_right_name, self.scene, nucleus_right, membrane_right)
+
+        return leftCell, rightCell
+
+    def end_cytokinesis(self):
+        # Copy all data and create new metaballs and objects specific to this cell only
+        # this will prevent the current cell from re-merging into its sibling, and will allow
+        # its material and texture properties to be set individually
+        return
+
+if __name__ == '__main__':
+    P0 = CreateLineageTracker(['Ea', 'D'])
+    P0_cell = Cell.spawn(P0, bpy.context.scene)

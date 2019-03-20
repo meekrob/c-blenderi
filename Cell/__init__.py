@@ -64,6 +64,15 @@ class Lineage:
 
         return None
 
+    def get_child_names(cellname, tree_nodes):
+        children = Lineage.get_children(cellname, tree_nodes)
+        if children:
+            names = [child['name'] for child in children]
+            names.sort()
+            return names
+
+        return []
+
     def get_parent_name(celltype):
         if celltype == 'P0': return None
         # top level 

@@ -14,9 +14,12 @@ class LineageTracker:
         self.root = tree
 
     def set(self, node_str):
-        if node_str in self.tree_nodes:
+        print( self.tree_nodes.keys(), file=sys.stderr)
+        node_names = [node_name for node_name in self.tree_nodes.keys()]
+        if node_str in node_names:
             self.current = node_str
         else:
+            print("KeyError with %s" % node_str, file=sys.stderr)
             raise "KeyError"
 
     def __str__(self):
@@ -32,7 +35,7 @@ class LineageTracker:
         names = Lineage.get_child_names(self.current, self.tree_nodes)
         pointers = []
         for name in names:
-            pointer = self.clone_pointer
+            pointer = self.clone_pointer()
             pointer.set(name)
             pointers.append(pointer)
 
@@ -49,6 +52,7 @@ class Lineage:
         for tip in tips:
             
             this_cell = { 'name': tip, 'parent': None, 'children': [] }
+            nodes[tip] = this_cell
             Lineage.recursively_link_parents(this_cell, nodes)
 
         return nodes
@@ -187,6 +191,7 @@ class Cell_Datum:
 
         el = mball.elements.new()
         el.co = el_template.co.copy()
+        el.radius = el_template.radius
         el.keyframe_insert("co")
         el.hide = False
         el.keyframe_insert("hide")
@@ -234,6 +239,9 @@ class Cell:
         self.nucleus_obj = nucleus_datum.obj
         self.membrane_obj = membrane_datum.obj
 
+    def __str__(self):
+        return str(self.cellname)
+
     def move_to(self, vec, insert_keyframes=True):
         self.membrane_el.co = vec
         self.nucleus_el.co = vec
@@ -265,9 +273,11 @@ class Cell:
             membrane_right.mball_el = Cell_Datum.debut_el_copy_at_current_frame( membrane_left.mball_el, membrane_left.mball, self.scene )
 
             # make new objects for "right"
-            nucleus_right.obj = Cell_Datum.debut_obj_copy_at_current_frame(cell_right_name + "_nuc", nucleus_right.obj, nucleus_right.mball, scene)
-            membrane_right.obj = Cell_Datum.debut_obj_copy_at_current_frame(cell_right_name + "_mem", membrane_right.obj, membrane_right.mball, scene)
+            nucleus_right.obj = Cell_Datum.debut_obj_copy_at_current_frame( str(cell_right_name) + "_nuc", nucleus_right.obj, nucleus_right.mball, self.scene)
+            self.scene.objects.link(nucleus_right.obj)
+            membrane_right.obj = Cell_Datum.debut_obj_copy_at_current_frame( str(cell_right_name) + "_mem", membrane_right.obj, membrane_right.mball, self.scene)
             rightCell = Cell(cell_right_name, self.scene, nucleus_right, membrane_right)
+            self.scene.objects.link(membrane_right.obj)
 
         return leftCell, rightCell
 
@@ -280,8 +290,21 @@ class Cell:
 from mathutils import Vector
 
 if __name__ == '__main__':
-    P0 = CreateLineageTracker(['Ea', 'D'])
+    P0 = CreateLineageTracker(['AB', 'P1'])
     Lineage.print_tree(P0.root)
     P0_cell = Cell.spawn(P0, bpy.context.scene)
-
     P0_cell.move_to( Vector((0,0,1)) )
+
+    bpy.context.scene.frame_current = 24
+    left_child, right_child = P0_cell.start_mitosis()
+    if left_child:
+        left_child.move_to( Vector((0,1,2)) )
+    if right_child:
+        right_child.move_to( Vector((0,0,2)) )
+
+    bpy.context.scene.frame_current = 48
+    if left_child:
+        left_child.move_to( Vector((5,1,2)) )
+    if right_child:
+        right_child.move_to( Vector((-5,0,2)) )
+

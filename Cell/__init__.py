@@ -4,9 +4,9 @@ import bpy
 def CreateLineageTracker( tips ):
     tree_nodes = Lineage.build_tree_from_tips( tips )
     root = Lineage.get_root( tree_nodes )
-    return new LineageTracker(tree_nodes, root['name'])
+    return LineageTracker(tree_nodes, root['name'])
 
-class LineageTracker():
+class LineageTracker:
     # persistant object wrapper around the static methods
     def __init__(self, tree_nodes, current=None):
         self.tree_nodes = tree_nodes
@@ -38,7 +38,7 @@ class LineageTracker():
         return pointers
 
     def clone_pointer(self):
-        return new LineageTracker(self.tree_nodes, self.current)
+        return LineageTracker(self.tree_nodes, self.current)
         
 # static
 class Lineage:
@@ -66,8 +66,16 @@ class Lineage:
                 nodes[parent_cell_name] = { 'name': parent_cell_name, 'parent': None, 'children': [] }
 
             child_node['parent'] = nodes[parent_cell_name]
-            if child_node not in child_node['parent']['children']:
-                child_node['parent']['children'].append( child_node )
+            if False:
+                try:
+                    if child_node not in child_node['parent']['children']:
+                        child_node['parent']['children'].append( child_node )
+                except RecursionError as re:
+                    print("Maximum recursion exceeded on child_node (%s)" % child_node, file=sys.stderr)
+                    raise re
+            else:
+                if child_node not in child_node['parent']['children']:
+                    child_node['parent']['children'].append( child_node )
 
             # do grandparent
             Lineage.recursively_link_parents(child_node['parent'], nodes)
@@ -134,12 +142,12 @@ class Lineage:
 
 class Cell_Datum:
     def __init__(self, cellname, obj, mball, mball_el):
-        self.cellname = self.cellname
+        self.cellname = cellname
         self.obj = obj
         self.mball = mball
         self.mball_el = mball_el
     def copy(self):
-        return new Cell_Datum(self.cellname, self.obj, self.mball, self.mball_el)
+        return Cell_Datum(self.cellname, self.obj, self.mball, self.mball_el)
 
     # static utils
     def debut_obj_copy_at_current_frame(new_name, obj_template, mball, scene):
@@ -172,39 +180,39 @@ class Cell_Datum:
 class Cell:
     def spawn(cellname, scene):
         # nucleus
-        mball = bpy.data.metaballs.new(cellname + "_nuc")
-        obj = bpy.data.objects.new(cellname + "_nuc")
+        mball = bpy.data.metaballs.new(str(cellname) + "_nuc")
+        obj = bpy.data.objects.new(str(cellname) + "_nuc", mball)
         scene.objects.link(obj)
         mball.resolution = 0.16
         mball.render_resolution = 0.1
         el = mball.elements.new()
         el.radius = 2
-        nuc_data = new Cell_Datum(cellname, obj, mball, el)
+        nuc_data = Cell_Datum(cellname, obj, mball, el)
         # membrane
-        mball = bpy.data.metaballs.new(cellname + "_mem")
-        obj = bpy.data.objects.new(cellname + "_mem")
+        mball = bpy.data.metaballs.new(str(cellname) + "_mem")
+        obj = bpy.data.objects.new(str(cellname) + "_mem", mball)
         scene.objects.link(obj)
         mball.resolution = 0.16
         mball.render_resolution = 0.1
         el = mball.elements.new()
         el.radius = 4
-        mem_data = new Cell_Datum(cellname, obj, mball, el)
+        mem_data = Cell_Datum(cellname, obj, mball, el)
         
         # make a Cell
-        return new Cell(cellname, scene, nuc_data, mem_data)
+        return Cell(cellname, scene, nuc_data, mem_data)
         
-    def __init__(self, cellname, scene, nucleus_datum, membrane_datum)
-        self.cellname = self.cellname
+    def __init__(self, cellname, scene, nucleus_datum, membrane_datum):
+        self.cellname = cellname
         self.scene = scene 
         self.nucleus = nucleus_datum
         self.membrane = membrane_datum
         
-        self.nucleus_mball = nucleus_mball
-        self.membrane_mball = membrane_mball
-        self.nucleus_el = nucleus_el
-        self.membrane_el = membrane_el
-        self.nucleus_obj = nucleus_obj
-        self.membrane_obj = membrane_obj
+        self.nucleus_mball = nucleus_datum.mball
+        self.membrane_mball = membrane_datum.mball
+        self.nucleus_el = nucleus_datum.mball_el
+        self.membrane_el = membrane_datum.mball_el
+        self.nucleus_obj = nucleus_datum.obj
+        self.membrane_obj = membrane_datum.obj
 
     def move_to(self, vec, insert_keyframes=True):
         self.membrane_el.co = vec
@@ -225,7 +233,7 @@ class Cell:
             nucleus_left = self.nucleus
             membrane_left = self.membrane
             cell_left_name = child_names[0]
-            leftCell = new Cell(cell_left_name, self.scene, nucleus_left, membrane_left)
+            leftCell = Cell(cell_left_name, self.scene, nucleus_left, membrane_left)
 
         if len(child_names) > 1:
             nucleus_right = self.nucleus.copy()
@@ -239,7 +247,7 @@ class Cell:
             # make new objects for "right"
             nucleus_right.obj = Cell_Datum.debut_obj_copy_at_current_frame(cell_right_name + "_nuc", nucleus_right.obj, nucleus_right.mball, scene)
             membrane_right.obj = Cell_Datum.debut_obj_copy_at_current_frame(cell_right_name + "_mem", membrane_right.obj, membrane_right.mball, scene)
-            rightCell = new Cell(cell_right_name, self.scene, nucleus_right, membrane_right)
+            rightCell = Cell(cell_right_name, self.scene, nucleus_right, membrane_right)
 
         return leftCell, rightCell
 

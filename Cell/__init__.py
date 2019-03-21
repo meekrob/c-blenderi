@@ -276,12 +276,18 @@ class Cell:
             membrane_right = self.membrane.copy()
             cell_right_name = child_names[1] 
 
-            # account for apparent "blow-up" of metaballs when doubled
+            ## Add keyframes to the current_frame - 1
             current_frame = self.scene.frame_current
             previous_frame = current_frame - 1
             self.scene.frame_current = previous_frame
+            ### key exact position before duplication to prevent a "studder"
+            nucleus_left.mball_el.keyframe_insert("co")
+            membrane_left.mball_el.keyframe_insert("co")
+            ### account for apparent "blow-up" of metaballs when doubled
             nucleus_left.mball_el.keyframe_insert("radius")
             membrane_left.mball_el.keyframe_insert("radius")
+
+            ## Restore current position
             self.scene.frame_current = current_frame
 
             # debut new mesh elements for "right"

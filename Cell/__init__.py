@@ -317,7 +317,7 @@ class Cell:
             ## Restore current position
             self.scene.frame_current = current_frame
 
-            # debut new mesh elements for "right"
+            # debut new mesh elements for "right", includes reducing the radius of the new elements to account for the change in volume
             nucleus_right.mball_el = Cell_Datum.debut_el_copy_at_current_frame( nucleus_left.mball_el, nucleus_left.mball, self.scene )
             membrane_right.mball_el = Cell_Datum.debut_el_copy_at_current_frame( membrane_left.mball_el, membrane_left.mball, self.scene )
 

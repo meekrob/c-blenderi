@@ -193,24 +193,51 @@ class Cell_Datum:
     def debut_el_copy_at_current_frame(el_template, mball, scene):
         # this is a new element of mball, cloning properties of el_template
         current_frame = scene.frame_current
-
-        el = mball.elements.new()
-        el.co = el_template.co.copy()
+        el = Cell.clone_el_inside_metaball(el_template)
         el.keyframe_insert("co")
+        # reduction factor to keep the volumes the same
         el.radius = el_template.radius * 5/6
         el_template.radius = el.radius
         el_template.keyframe_insert("radius")
         el.keyframe_insert("radius")
-        el.hide = False
-        el.keyframe_insert("hide")
-        scene.frame_current = 1
-        el.hide = True
-        el.keyframe_insert("hide")
-        scene.frame_current = current_frame
-
+        # debut in timeline
+        Cell.hide_at_frame(el, scene, 1)
+        Cell.show_at_frame(el, scene, current_frame)
         return el
 
 class Cell:
+    def show_at_frame(obj, scene, frame):
+        Cell.hide_at_frame(obj, scene, frame, False)
+
+    def hide_at_frame(obj, scene, frame, hide=True):
+        save_frame = scene.frame_current
+        scene.frame_current = frame
+        obj.hide = hide
+        obj.keyframe_insert("hide")
+        scene.frame_current = save_frame
+
+    def clone_el_inside_metaball(metaball_element):
+        mball = metaball_element.id_data
+        new_el = mball.elements.new()
+        new_el.co = metaball_element.co.copy()
+        new_el.radius = metaball_element.radius
+        # ... what else?
+        return new_el
+
+    def clone_mobj(new_name, old_mobj): # "mobj" is a metaball object
+        new_mobj = bpy.data.objects.new(new_name, bpy.data.metaballs.new(new_name))
+        # copy metaball properties
+        new_mobj.data.resolution = old_mobj.data.resolution
+        new_mobj.data.render_resolution = old_mobj.data.render_resolution
+        new_mobj.data.threshold = old_mobj.data.threshold
+        # clone metaball elements
+        for el_template in old_mobj.data.elements:
+            new_el = new_mobj.data.elements.new()
+            new_el.co = el_template.co.copy()
+            new_el.radius = el_template.radius
+        # new object with name "new_name", data is a metaball, clones of all objects
+        return new_mobj
+            
     def spawn(cellname, scene):
         # nucleus
         mball = bpy.data.metaballs.new(str(cellname) + "_nuc")

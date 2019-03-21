@@ -174,6 +174,10 @@ class Cell_Datum:
         return Cell_Datum(self.cellname, self.obj, self.mball, self.mball_el)
 
     # static utils
+    def debut_mball_copy_at_current_frame(new_name, mball, scene):
+        current_frame = scene.frame_current
+        new_mball = bpy.data.metaballs.new()
+
     def debut_obj_copy_at_current_frame(new_name, obj_template, mball, scene):
         current_frame = scene.frame_current
         obj = bpy.data.objects.new(new_name, mball)
@@ -187,12 +191,16 @@ class Cell_Datum:
         return obj
 
     def debut_el_copy_at_current_frame(el_template, mball, scene):
+        # this is a new element of mball, cloning properties of el_template
         current_frame = scene.frame_current
 
         el = mball.elements.new()
         el.co = el_template.co.copy()
-        el.radius = el_template.radius
         el.keyframe_insert("co")
+        el.radius = el_template.radius * 5/6
+        el_template.radius = el.radius
+        el_template.keyframe_insert("radius")
+        el.keyframe_insert("radius")
         el.hide = False
         el.keyframe_insert("hide")
         scene.frame_current = 1
@@ -268,6 +276,14 @@ class Cell:
             membrane_right = self.membrane.copy()
             cell_right_name = child_names[1] 
 
+            # account for apparent "blow-up" of metaballs when doubled
+            current_frame = self.scene.frame_current
+            previous_frame = current_frame - 1
+            self.scene.frame_current = previous_frame
+            nucleus_left.mball_el.keyframe_insert("radius")
+            membrane_left.mball_el.keyframe_insert("radius")
+            self.scene.frame_current = current_frame
+
             # debut new mesh elements for "right"
             nucleus_right.mball_el = Cell_Datum.debut_el_copy_at_current_frame( nucleus_left.mball_el, nucleus_left.mball, self.scene )
             membrane_right.mball_el = Cell_Datum.debut_el_copy_at_current_frame( membrane_left.mball_el, membrane_left.mball, self.scene )
@@ -297,10 +313,6 @@ if __name__ == '__main__':
 
     bpy.context.scene.frame_current = 24
     left_child, right_child = P0_cell.start_mitosis()
-    #if left_child:
-        #left_child.move_to( Vector((0,1,2)) )
-    #if right_child:
-        #right_child.move_to( Vector((0,0,2)) )
 
     bpy.context.scene.frame_current = 128
     if left_child:

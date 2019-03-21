@@ -299,8 +299,8 @@ class Cell:
             leftCell = Cell(cell_left_name, self.scene, nucleus_left, membrane_left)
 
         if len(child_names) > 1:
-            nucleus_right = self.nucleus.copy()
-            membrane_right = self.membrane.copy()
+            nucleus_right = self.nucleus.copy() # "shallow" copy
+            membrane_right = self.membrane.copy() # "shallow" copy
             cell_right_name = child_names[1] 
 
             ## Add keyframes to the current_frame - 1
@@ -321,12 +321,8 @@ class Cell:
             nucleus_right.mball_el = Cell_Datum.debut_el_copy_at_current_frame( nucleus_left.mball_el, nucleus_left.mball, self.scene )
             membrane_right.mball_el = Cell_Datum.debut_el_copy_at_current_frame( membrane_left.mball_el, membrane_left.mball, self.scene )
 
-            # make new objects for "right"
-            nucleus_right.obj = Cell_Datum.debut_obj_copy_at_current_frame( str(cell_right_name) + "_nuc", nucleus_right.obj, nucleus_right.mball, self.scene)
-            self.scene.objects.link(nucleus_right.obj)
-            membrane_right.obj = Cell_Datum.debut_obj_copy_at_current_frame( str(cell_right_name) + "_mem", membrane_right.obj, membrane_right.mball, self.scene)
+            # make new Cell for right-hand element (only the metaball element is different)
             rightCell = Cell(cell_right_name, self.scene, nucleus_right, membrane_right)
-            self.scene.objects.link(membrane_right.obj)
 
         return leftCell, rightCell
 

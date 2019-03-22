@@ -1,3 +1,14 @@
+bl_info = {
+    "name" : "Cell division metaball modeller",
+    "author" : "David C. King",
+    "version" : (2, 79, 0),
+    "location" : "View3D > Tools > Create",
+    "description" : "Model cell divisions as nuclear and membrane metaballs",
+    "tracker_url" : "https://github.com/meekrob/c-blenderi/issues",
+    "warning" : "",
+    "wiki_url" : "https://github.com/meekrob/c-blenderi/wiki",
+    "category" : "3D View"
+}
 import sys
 import bpy
 
@@ -224,17 +235,23 @@ class Cell:
         # ... what else?
         return new_el
 
-    def clone_mobj(new_name, old_mobj): # "mobj" is a metaball object
+    def clone_mobj(new_name, template_el): 
+        # old mball is the id_data of the template element
+        old_mobj_mball = template_el.id_data
+
+        # create a new metaball object
         new_mobj = bpy.data.objects.new(new_name, bpy.data.metaballs.new(new_name))
+        new_mobj_mball = new_mobj.data # new mball is the data of the new_mobj
+
         # copy metaball properties
-        new_mobj.data.resolution = old_mobj.data.resolution
-        new_mobj.data.render_resolution = old_mobj.data.render_resolution
-        new_mobj.data.threshold = old_mobj.data.threshold
+        new_mobj_mball.resolution = old_mobj_mball.resolution
+        new_mobj_mball.render_resolution = old_mobj_mball.render_resolution
+        new_mobj_mball.threshold = old_mobj_mball.threshold
+
         # clone metaball elements
-        for el_template in old_mobj.data.elements:
-            new_el = new_mobj.data.elements.new()
-            new_el.co = el_template.co.copy()
-            new_el.radius = el_template.radius
+        new_el = new_mobj_mball.elements.new()
+        new_el.co = template_el.co.copy()
+        new_el.radius = template_el.radius
         # new object with name "new_name", data is a metaball, clones of all objects
         return new_mobj
             
@@ -264,14 +281,19 @@ class Cell:
     def __init__(self, cellname, scene, nucleus_datum, membrane_datum):
         self.cellname = cellname
         self.scene = scene 
-        self.nucleus = nucleus_datum
-        self.membrane = membrane_datum
+        self.set_nucleus_datum(nucleus_datum)
+        self.set_membrane_datum(membrane_datum)
         
+    def set_nucleus_datum(self, nucleus_datum):
+        self.nucleus = nucleus_datum
         self.nucleus_mball = nucleus_datum.mball
-        self.membrane_mball = membrane_datum.mball
         self.nucleus_el = nucleus_datum.mball_el
-        self.membrane_el = membrane_datum.mball_el
         self.nucleus_obj = nucleus_datum.obj
+
+    def set_membrane_datum(self, membrane_datum):
+        self.membrane = membrane_datum
+        self.membrane_mball = membrane_datum.mball
+        self.membrane_el = membrane_datum.mball_el
         self.membrane_obj = membrane_datum.obj
 
     def __str__(self):
@@ -330,7 +352,36 @@ class Cell:
         # Copy all data and create new metaballs and objects specific to this cell only
         # this will prevent the current cell from re-merging into its sibling, and will allow
         # its material and texture properties to be set individually
-        return
+        current_frame = self.scene.frame_current
+        scene = self.scene
+
+        ### nucleus
+        new_nucleus = Cell.clone_mobj(str(self.cellname) + "_nuc", self.nucleus_el)
+        scene.objects.link(new_nucleus)
+        new_nucleus_el = new_nucleus.data.elements[0]
+        new_nucleus_el.keyframe_insert("co")
+        ## replace in timeline
+        # hide previous
+        #Cell.hide_at_frame(self.nucleus_el, scene, current_frame) 
+        # debut new
+        #Cell.hide_at_frame(new_nucleus_el, scene, 1)
+        #Cell.show_at_frame(new_nucleus_el, scene, current_frame)
+        
+        ### membrane
+        new_membrane = Cell.clone_mobj(str(self.cellname) + "_mem", self.membrane_el)
+        scene.objects.link(new_membrane)
+        new_membrane_el = new_membrane.data.elements[0]
+        new_membrane_el.keyframe_insert("co")
+        ## replace in timeline
+        # hide previous
+        #Cell.hide_at_frame(self.membrane_el, scene, current_frame) 
+        # debut new
+        #Cell.hide_at_frame(new_membrane_el, scene, 1)
+        #Cell.show_at_frame(new_membrane_el, scene, current_frame)
+
+        # replace Cell_Datum instances
+        self.set_nucleus_datum(Cell_Datum(self.cellname, new_nucleus, new_nucleus.data, new_nucleus.data.elements[0]))
+        self.set_membrane_datum(Cell_Datum(self.cellname, new_membrane, new_membrane.data, new_membrane.data.elements[0]))
 
 from mathutils import Vector
 
@@ -341,11 +392,17 @@ if __name__ == '__main__':
     P0_cell.move_to( Vector((0,0,1)) )
 
     bpy.context.scene.frame_current = 24
-    left_child, right_child = P0_cell.start_mitosis()
+    AB_cell, P1_cell = P0_cell.start_mitosis()
 
     bpy.context.scene.frame_current = 128
-    if left_child:
-        left_child.move_to( Vector((5,1,2)) )
-    if right_child:
-        right_child.move_to( Vector((-5,0,2)) )
+    if AB_cell:
+        AB_cell.move_to( Vector((5,1,2)) )
+    if P1_cell:
+        P1_cell.move_to( Vector((-5,0,2)) )
 
+    bpy.context.scene.frame_current = 129
+    AB_cell.end_cytokinesis()
+    bpy.context.scene.frame_current = 140
+    AB_cell.move_to( Vector((5,1,5)) )
+    
+    bpy.context.scene.frame_current = 1

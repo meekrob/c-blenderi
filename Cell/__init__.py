@@ -392,7 +392,7 @@ class Cell:
 from mathutils import Vector
 
 if __name__ == '__main__':
-    P0 = CreateLineageTracker(['AB', 'P1'])
+    P0 = CreateLineageTracker(['AB', 'P1', 'EMS', 'P2'])
     Lineage.print_tree(P0.root)
     P0_cell = Cell.spawn(P0, bpy.context.scene)
     P0_cell.move_to( Vector((0,0,1)) )
@@ -408,7 +408,16 @@ if __name__ == '__main__':
 
     bpy.context.scene.frame_current = 129
     AB_cell.end_cytokinesis()
-    bpy.context.scene.frame_current = 140
-    AB_cell.move_to( Vector((5,1,5)) )
+    P1_cell.end_cytokinesis()
+    bpy.context.scene.frame_current = 200
+    AB_cell.move_to( Vector((5,1,10)) )
+    P1_cell.move_to( Vector((-5,1,10)) )
     
+    # 2nd division
+    EMS_cell,P2_cell = P1_cell.start_mitosis()
+        
+    bpy.context.scene.frame_current = 250
+    EMS_cell.move_to( Vector((-5,-10,10)) )
+    P2_cell.move_to( Vector((-5,10,10)) )
+
     bpy.context.scene.frame_current = 1

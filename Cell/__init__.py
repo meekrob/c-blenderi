@@ -264,6 +264,9 @@ class Cell:
         mball.render_resolution = 0.1
         el = mball.elements.new()
         el.radius = 2
+        ## insert visibility keyframe (should it go here?)
+        el.keyframe_insert("hide")
+        ## visibility keyframe
         nuc_data = Cell_Datum(cellname, obj, mball, el)
         # membrane
         mball = bpy.data.metaballs.new(str(cellname) + "_mem")
@@ -272,6 +275,9 @@ class Cell:
         mball.resolution = 0.16
         mball.render_resolution = 0.1
         el = mball.elements.new()
+        ## insert visibility keyframe (should it go here?)
+        el.keyframe_insert("hide")
+        ## visibility keyframe
         el.radius = 4
         mem_data = Cell_Datum(cellname, obj, mball, el)
         
@@ -362,10 +368,10 @@ class Cell:
         new_nucleus_el.keyframe_insert("co")
         ## replace in timeline
         # hide previous
-        #Cell.hide_at_frame(self.nucleus_el, scene, current_frame) 
+        Cell.hide_at_frame(self.nucleus_el, scene, current_frame) 
         # debut new
-        #Cell.hide_at_frame(new_nucleus_el, scene, 1)
-        #Cell.show_at_frame(new_nucleus_el, scene, current_frame)
+        Cell.hide_at_frame(new_nucleus_el, scene, 1)
+        Cell.show_at_frame(new_nucleus_el, scene, current_frame)
         
         ### membrane
         new_membrane = Cell.clone_mobj(str(self.cellname) + "_mem", self.membrane_el)
@@ -374,10 +380,10 @@ class Cell:
         new_membrane_el.keyframe_insert("co")
         ## replace in timeline
         # hide previous
-        #Cell.hide_at_frame(self.membrane_el, scene, current_frame) 
+        Cell.hide_at_frame(self.membrane_el, scene, current_frame) 
         # debut new
-        #Cell.hide_at_frame(new_membrane_el, scene, 1)
-        #Cell.show_at_frame(new_membrane_el, scene, current_frame)
+        Cell.hide_at_frame(new_membrane_el, scene, 1)
+        Cell.show_at_frame(new_membrane_el, scene, current_frame)
 
         # replace Cell_Datum instances
         self.set_nucleus_datum(Cell_Datum(self.cellname, new_nucleus, new_nucleus.data, new_nucleus.data.elements[0]))

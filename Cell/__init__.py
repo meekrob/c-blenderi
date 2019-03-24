@@ -11,6 +11,8 @@ bl_info = {
 }
 import sys
 import bpy
+from mathutils import Vector
+import os
 
 def CreateLineageTracker( tips ):
     tree_nodes = Lineage.build_tree_from_tips( tips )
@@ -25,7 +27,7 @@ class LineageTracker:
         self.root = tree
 
     def set(self, node_str):
-        print( self.tree_nodes.keys(), file=sys.stderr)
+        #print( self.tree_nodes.keys(), file=sys.stderr)
         node_names = [node_name for node_name in self.tree_nodes.keys()]
         if node_str in node_names:
             self.current = node_str
@@ -69,39 +71,40 @@ class Lineage:
         return nodes
 
     def recursively_link_parents(child_node, nodes):
+            DEBUG = False
             node_dict = ",".join(nodes.keys())
-            print("\n= ENTER ================= ========================", file=sys.stderr) 
-            print("Lineage.recursively_link_parents( <%s>, {%s})" % (child_node['name'], node_dict), file=sys.stderr)
+
+            if DEBUG:
+                print("\n= ENTER ================= ========================", file=sys.stderr) 
+                print("Lineage.recursively_link_parents( <%s>, {%s})" % (child_node['name'], node_dict), file=sys.stderr)
 
 
             parent_cell_name = Lineage.get_parent_name( child_node['name'] )
-            print("child_node %s parent? %s" % (child_node['name'], parent_cell_name), file=sys.stderr)
+            if DEBUG: print("child_node %s parent? %s" % (child_node['name'], parent_cell_name), file=sys.stderr)
 
             # stop at the top
             if parent_cell_name is None: 
-                print("============= RETURN ===============>", file=sys.stderr)
+                if DEBUG: print("============= RETURN ===============>", file=sys.stderr)
                 return
                 
             # create parent, unless sibling has already done so
             if parent_cell_name not in nodes:
-                print("CREATE NODE:", parent_cell_name, file=sys.stderr)
+                if DEBUG: print("CREATE NODE:", parent_cell_name, file=sys.stderr)
                 nodes[parent_cell_name] = { 'name': parent_cell_name, 'parent': None, 'children': [] }
             else:
                 names = [child['name'] for child in nodes[parent_cell_name]['children']]
-                print("PARENT EXISTS:", parent_cell_name, str(names), file=sys.stderr)
+                if DEBUG: print("PARENT EXISTS:", parent_cell_name, str(names), file=sys.stderr)
 
             node_dict = ",".join(nodes.keys())
-            print("node_dict:", '{' + node_dict + '}', file=sys.stderr)
+            if DEBUG: print("node_dict:", '{' + node_dict + '}', file=sys.stderr)
 
             child_node['parent'] = nodes[parent_cell_name]
             try:
                 names = [child['name'] for child in child_node['parent']['children']]
                 if child_node['name'] not in names:
-                #if child_node not in child_node['parent']['children']:
-                    #names = [child['name'] for child in child_node['parent']['children']]
                     child_node['parent']['children'].append( child_node )
                     new_names = [child['name'] for child in child_node['parent']['children']]
-                    print(child_node['name'], "not in %s['children']:" % parent_cell_name, str(names), "=>", str(new_names), file=sys.stderr)
+                    if DEBUG: print(child_node['name'], "not in %s['children']:" % parent_cell_name, str(names), "=>", str(new_names), file=sys.stderr)
             except RecursionError as re:
                 names = [child['name'] for child in child_node['parent']['children']]
                 print("Maximum recursion exceeded on child_node (name:%s) in" % child_node['name'], str(names), file=sys.stderr)
@@ -110,9 +113,9 @@ class Lineage:
 
             # do grandparent
             node_dict = ",".join(nodes.keys())
-            print("Lineage.recursively_link_parents(child_node['parent'], nodes)", file=sys.stderr)
-            print("Lineage.recursively_link_parents( <%s>, {%s})" % (child_node['parent']['name'], node_dict), file=sys.stderr)
-            print("============= Recurse ===============>", file=sys.stderr)
+            if DEBUG: print("Lineage.recursively_link_parents(child_node['parent'], nodes)", file=sys.stderr)
+            if DEBUG: print("Lineage.recursively_link_parents( <%s>, {%s})" % (child_node['parent']['name'], node_dict), file=sys.stderr)
+            if DEBUG: print("============= Recurse ===============>", file=sys.stderr)
             Lineage.recursively_link_parents(child_node['parent'], nodes)
 
     def print_tree(root, depth=0):
@@ -202,6 +205,7 @@ class Cell_Datum:
         return obj
 
     def debut_el_copy_at_current_frame(el_template, mball, scene):
+        print("Cell_Datum.debut_el_copy_at_current_frame( " + mball.name + " )", file=sys.stderr)
         # this is a new element of mball, cloning properties of el_template
         current_frame = scene.frame_current
         el = Cell.clone_el_inside_metaball(el_template)
@@ -217,6 +221,11 @@ class Cell_Datum:
         return el
 
 class Cell:
+
+
+    MODE_GROWTH = "GROWTH"
+    MODE_MITOSIS = "MITOSIS"
+    
     def show_at_frame(obj, scene, frame):
         Cell.hide_at_frame(obj, scene, frame, False)
 
@@ -263,7 +272,7 @@ class Cell:
         mball.resolution = 0.16
         mball.render_resolution = 0.1
         el = mball.elements.new()
-        el.radius = 2
+        el.radius = .5
         ## insert visibility keyframe (should it go here?)
         el.keyframe_insert("hide")
         ## visibility keyframe
@@ -278,25 +287,37 @@ class Cell:
         ## insert visibility keyframe (should it go here?)
         el.keyframe_insert("hide")
         ## visibility keyframe
-        el.radius = 4
+        el.radius = 1
         mem_data = Cell_Datum(cellname, obj, mball, el)
         
         # make a Cell
         return Cell(cellname, scene, nuc_data, mem_data)
         
     def __init__(self, cellname, scene, nucleus_datum, membrane_datum):
+        print("__init__(" + str(cellname) + ")", file=sys.stderr)
         self.cellname = cellname
         self.scene = scene 
         self.set_nucleus_datum(nucleus_datum)
         self.set_membrane_datum(membrane_datum)
+        self.mode = Cell.MODE_GROWTH
+        self.sibling = None
+        self.mitosis_ticks = 0
+
+    def set_nucleus_material(self, material):
+        self.nucleus_obj.active_material = material
+
+    def set_membrane_material(self, material):
+        self.membrane_obj.active_material = material
         
     def set_nucleus_datum(self, nucleus_datum):
+        print(str(self.cellname) + ".set_nucleus_datum(" + nucleus_datum.mball.name + ")", file=sys.stderr)
         self.nucleus = nucleus_datum
         self.nucleus_mball = nucleus_datum.mball
         self.nucleus_el = nucleus_datum.mball_el
         self.nucleus_obj = nucleus_datum.obj
 
     def set_membrane_datum(self, membrane_datum):
+        print(str(self.cellname) + ".set_membrane_datum(" + membrane_datum.mball.name + ")", file=sys.stderr)
         self.membrane = membrane_datum
         self.membrane_mball = membrane_datum.mball
         self.membrane_el = membrane_datum.mball_el
@@ -305,7 +326,17 @@ class Cell:
     def __str__(self):
         return str(self.cellname)
 
+    def in_mitosis(self):
+        return self.mode == Cell.MODE_MITOSIS
+
     def move_to(self, vec, insert_keyframes=True):
+        print(str(self.cellname) + ".move_to", file=sys.stderr, end=' ')
+        if self.mode == Cell.MODE_MITOSIS:
+            self.mitosis_ticks += 1
+            print("%d moves in mitosis" % self.mitosis_ticks, file=sys.stderr,)
+        else:
+            print("mode: " + self.mode, file=sys.stderr,)
+
         self.membrane_el.co = vec
         self.nucleus_el.co = vec
         if insert_keyframes:
@@ -313,6 +344,12 @@ class Cell:
             self.nucleus_el.keyframe_insert("co")
 
     def start_mitosis(self):
+        print(str(self.cellname) + ".start_mitosis", file=sys.stderr)
+        if self.mode != Cell.MODE_GROWTH:
+            print(self.cellname, "called start_mitosis() in error: it not in MODE_GROWTH, it is in %s" % self.mode, file=sys.stderr)
+            return
+
+        self.mode = Cell.MODE_MITOSIS
         leftCell = None
         rightCell = None
         # Duplicate geometry, and return new Cell objects that encapsulate the children of the current cell.
@@ -352,9 +389,19 @@ class Cell:
             # make new Cell for right-hand element (only the metaball element is different)
             rightCell = Cell(cell_right_name, self.scene, nucleus_right, membrane_right)
 
+        leftCell.sibling = rightCell
+        rightCell.sibling = leftCell
+        if leftCell: leftCell.mode = Cell.MODE_MITOSIS
+        if rightCell: rightCell.mode = Cell.MODE_MITOSIS
         return leftCell, rightCell
 
     def end_cytokinesis(self):
+        print(str(self.cellname) + ".end_cytokinesis", file=sys.stderr)
+        if self.mode != Cell.MODE_MITOSIS:
+            print(self.cellname, "called end_cytokinesis() in error: it is not in MODE_MITOSIS, it is in %s" % self.mode, file=sys.stderr)
+            return
+
+        self.mode = Cell.MODE_GROWTH
         # Copy all data and create new metaballs and objects specific to this cell only
         # this will prevent the current cell from re-merging into its sibling, and will allow
         # its material and texture properties to be set individually
@@ -389,12 +436,76 @@ class Cell:
         self.set_nucleus_datum(Cell_Datum(self.cellname, new_nucleus, new_nucleus.data, new_nucleus.data.elements[0]))
         self.set_membrane_datum(Cell_Datum(self.cellname, new_membrane, new_membrane.data, new_membrane.data.elements[0]))
 
-from mathutils import Vector
+def run_file(filename):
+    nucleus_mat = bpy.data.materials['Nucleus_mat']
+    membrane_mat = bpy.data.materials['Membrane_mat']
 
-if __name__ == '__main__':
-    P0 = CreateLineageTracker(['AB', 'P1', 'EMS', 'P2'])
-    Lineage.print_tree(P0.root)
+    print("About to parse file:", filename, file=sys.stderr)
+    fh = open(filename, "r")
+    header_names = fh.readline().strip().split(",")
+    # create founder cell
+    LINEAGE = CreateLineageTracker(ALL_END_PNTS)
+    P0_cell = Cell.spawn(LINEAGE, bpy.context.scene)
+
+    P0_cell.set_nucleus_material( nucleus_mat )
+    P0_cell.set_membrane_material( membrane_mat )
+
+    embryo = {}
+    embryo['P0'] = P0_cell
+
+    quit_after = 40
+    for i,line in enumerate(fh):
+        fields = line.strip().split(",")
+        row = {}
+        for key,value in zip(header_names,fields):
+            row[key] = value
+
+        x,y,z = float(row['x'])/100,float(row['y'])/100,float(row['z'])/10
+
+        # set time point
+        bpy.context.scene.frame_current = int(row['time']) * 12
+
+        if row['cell'] not in embryo:
+            # we need to see if the parent of the current row's cell exists
+            parent_cell_name = Lineage.get_parent(row['cell'], LINEAGE.tree_nodes)["name"]
+            print("current cell [%s] ----PARENT---> [%s]" %(row['cell'], parent_cell_name))
+            if parent_cell_name in embryo:
+                parent = embryo[parent_cell_name]
+                # fork children
+                children = parent.start_mitosis()
+                for child in children:
+                    childname = str(child.cellname)
+                    print("spawning [%s]" % childname)
+                    embryo[childname] = child
+                    print(embryo.keys())
+
+        current_cell = embryo[ row['cell'] ]
+        print("move cell %s to %s,%s,%s" % (row['cell'], row['x'], row['y'], row['z']))
+        current_cell.move_to( Vector( (x,y,z) ) )
+
+        if current_cell.in_mitosis() and current_cell.mitosis_ticks > 4:
+            current_cell.end_cytokinesis()
+        
+
+
+        if i >= quit_after:
+            break
+
+def frst_debug():
+    global ALL_END_PNTS
+
+
+    nucleus_mat = bpy.data.materials['Nuclear_mat']
+    membrane_mat = bpy.data.materials['Membrane_mat']
+
+
+    #P0 = CreateLineageTracker(['AB', 'P1', 'EMS', 'P2'])
+    P0 = CreateLineageTracker(ALL_END_PNTS)
+
     P0_cell = Cell.spawn(P0, bpy.context.scene)
+    P0_cell.set_nuclear_material( nucleus_mat )
+    P0_cell.set_membrane_material( membrane_mat )
+
     P0_cell.move_to( Vector((0,0,1)) )
 
     bpy.context.scene.frame_current = 24
@@ -421,3 +532,44 @@ if __name__ == '__main__':
     P2_cell.move_to( Vector((-5,10,10)) )
 
     bpy.context.scene.frame_current = 1
+
+
+ALL_END_PNTS = [
+ 'ABalaaaala', 'ABalaaaalp', 'ABalaaaarl', 'ABalaaaarr', 'ABalaaapal', 'ABalaaapar', 'ABalaaappl', 'ABalaaappr', 'ABalaapaaa', 'ABalaapaap', 'ABalaapapa',
+ 'ABalaapapp', 'ABalaappaa', 'ABalaappap', 'ABalaapppa', 'ABalaapppp', 'ABalapaaaa', 'ABalapaaap', 'ABalapaapa', 'ABalapaapp', 'ABalapapaa', 'ABalapapap',
+ 'ABalapappa', 'ABalapappp', 'ABalappaaa', 'ABalappaap', 'ABalappapa', 'ABalappapp', 'ABalapppaa', 'ABalapppap', 'ABalappppa', 'ABalappppp', 'ABalpaaaaa',
+ 'ABalpaaaap', 'ABalpaaapa', 'ABalpaaapp', 'ABalpaapaa', 'ABalpaapap', 'ABalpaappa', 'ABalpaappp', 'ABalpapaaa', 'ABalpapaap', 'ABalpapapa', 'ABalpapapp',
+ 'ABalpappaa', 'ABalpappap', 'ABalpapppa', 'ABalpapppp', 'ABalppaaaa', 'ABalppaaap', 'ABalppaapa', 'ABalppaapp', 'ABalppapaa', 'ABalppapap', 'ABalppappa',
+ 'ABalppappp', 'ABalpppaaa', 'ABalpppaap', 'ABalpppapa', 'ABalpppapp', 'ABalppppaa', 'ABalppppap', 'ABalpppppa', 'ABalpppppp', 'ABaraaaaaa', 'ABaraaaaap',
+ 'ABaraaaapa', 'ABaraaaapp', 'ABaraaapaa', 'ABaraaapap', 'ABaraaappa', 'ABaraaappp', 'ABaraapaaa', 'ABaraapaap', 'ABaraapapa', 'ABaraapapp', 'ABaraappaa',
+ 'ABaraappap', 'ABaraapppa', 'ABaraapppp', 'ABarapaaaa', 'ABarapaaap', 'ABarapaapa', 'ABarapaapp', 'ABarapapaa', 'ABarapapap', 'ABarapappa', 'ABarapappp',
+ 'ABarappaaa', 'ABarappaap', 'ABarappapa', 'ABarappapp', 'ABarapppaa', 'ABarapppap', 'ABarappppa', 'ABarappppp', 'ABarpaaaaa', 'ABarpaaaap', 'ABarpaaapa',
+ 'ABarpaaapp', 'ABarpaapaa', 'ABarpaapap', 'ABarpaappa', 'ABarpaappp', 'ABarpapaaa', 'ABarpapaap', 'ABarpapapa', 'ABarpapapp', 'ABarpappaa', 'ABarpappap',
+ 'ABarpapppa', 'ABarpapppp', 'ABarppaaaa', 'ABarppaaap', 'ABarppaapa', 'ABarppaapp', 'ABarppapaa', 'ABarppapap', 'ABarppappa', 'ABarppappp', 'ABarpppaaa',
+ 'ABarpppaap', 'ABarpppapa', 'ABarpppapp', 'ABarppppaa', 'ABarppppap', 'ABarpppppa', 'ABarpppppp', 'ABplaaaaaa', 'ABplaaaaap', 'ABplaaaapa', 'ABplaaaapp',
+ 'ABplaaapaa', 'ABplaaapap', 'ABplaaappa', 'ABplaaappp', 'ABplaapaaa', 'ABplaapaap', 'ABplaapapa', 'ABplaapapp', 'ABplaappaa', 'ABplaappap', 'ABplaapppa',
+ 'ABplaapppp', 'ABplapaaaa', 'ABplapaaap', 'ABplapaapa', 'ABplapaapp', 'ABplapapaa', 'ABplapapap', 'ABplapappa', 'ABplapappp', 'ABplappaaa', 'ABplappaap',
+ 'ABplappapa', 'ABplappapp', 'ABplapppaa', 'ABplapppap', 'ABplappppa', 'ABplappppp', 'ABplpaaaaa', 'ABplpaaaap', 'ABplpaaapa', 'ABplpaaapp', 'ABplpaapaa',
+ 'ABplpaapap', 'ABplpaappa', 'ABplpaappp', 'ABplpapaaa', 'ABplpapaap', 'ABplpapapa', 'ABplpapapp', 'ABplpappaa', 'ABplpappap', 'ABplpapppa', 'ABplpapppp',
+ 'ABplppaaaa', 'ABplppaaap', 'ABplppaapa', 'ABplppaapp', 'ABplppapaa', 'ABplppapap', 'ABplppappa', 'ABplppappp', 'ABplpppaaa', 'ABplpppaap', 'ABplpppapa',
+ 'ABplpppapp', 'ABplppppaa', 'ABplppppap', 'ABplpppppa', 'ABplpppppp', 'ABpraaaaaa', 'ABpraaaaap', 'ABpraaaapa', 'ABpraaaapp', 'ABpraaapaa', 'ABpraaapap',
+ 'ABpraaappa', 'ABpraaappp', 'ABpraapaaa', 'ABpraapaap', 'ABpraapapa', 'ABpraapapp', 'ABpraappaa', 'ABpraappap', 'ABpraapppa', 'ABpraapppp', 'ABprapaaaa',
+ 'ABprapaaap', 'ABprapaapa', 'ABprapaapp', 'ABprapapaa', 'ABprapapap', 'ABprapappa', 'ABprapappp', 'ABprappaaa', 'ABprappaap', 'ABprappapa', 'ABprappapp',
+ 'ABprapppaa', 'ABprapppap', 'ABprappppa', 'ABprappppp', 'ABprpaaaaa', 'ABprpaaaap', 'ABprpaaapa', 'ABprpaaapp', 'ABprpaapaa', 'ABprpaapap', 'ABprpaappa',
+ 'ABprpaappp', 'ABprpapaaa', 'ABprpapaap', 'ABprpapapa', 'ABprpapapp', 'ABprpappaa', 'ABprpappap', 'ABprpapppa', 'ABprpapppp', 'ABprppaaaa', 'ABprppaaap',
+ 'ABprppaapa', 'ABprppaapp', 'ABprppapaa', 'ABprppapap', 'ABprppappa', 'ABprppappp', 'ABprpppaaa', 'ABprpppaap', 'ABprpppapa', 'ABprpppapp', 'ABprppppaa',
+ 'ABprppppap', 'ABprpppppa', 'ABprpppppp', 'MSaaaaaa', 'MSaaaaap', 'MSaaaapa', 'MSaaaapp', 'MSaaapaa', 'MSaaapap', 'MSaaapp', 'MSaapaaa',
+ 'MSaapaap', 'MSaapapa', 'MSaapapp', 'MSaappa', 'MSaappp', 'MSapaaaa', 'MSapaaap', 'MSapaap', 'MSapapaa', 'MSapapap', 'MSapapp',
+ 'MSappaa', 'MSappap', 'MSapppa', 'MSapppp', 'MSpaaaaa', 'MSpaaaap', 'MSpaaapa', 'MSpaaapp', 'MSpaapaa', 'MSpaapap', 'MSpaapp',
+ 'MSpapaaa', 'MSpapaap', 'MSpapapa', 'MSpapapp', 'MSpappa', 'MSpappp', 'MSppaaaa', 'MSppaaap', 'MSppaap', 'MSppapaa', 'MSppapap',
+ 'MSppapp', 'MSpppaa', 'MSpppap', 'MSppppa', 'MSppppp', 'Ealaa', 'Ealap', 'Ealpa', 'Ealpp', 'Earaa', 'Earap',
+ 'Earpa', 'Earpp', 'Eplaa', 'Eplap', 'Eplpa', 'Eplpp', 'Epraa', 'Eprap', 'Eprpa', 'Eprpp', 'Caaaaa',
+ 'Caaaap', 'Caaapa', 'Caaapp', 'Caapa', 'Caappd', 'Caappv', 'Capaa', 'Capap', 'Cappaa', 'Cappap', 'Capppa',
+ 'Capppp', 'Cpaaaa', 'Cpaaap', 'Cpaapa', 'Cpaapp', 'Cpapaa', 'Cpapap', 'Cpappd', 'Cpappv', 'Cppaaa', 'Cppaap',
+ 'Cppapa', 'Cppapp', 'Cpppaa', 'Cpppap', 'Cppppa', 'Cppppp', 'Daaa', 'Daap', 'Dapa', 'Dapp', 'Dpaa',
+ 'Dpap', 'Dppa', 'Dppp', 'Z2', 'Z3']
+
+
+if __name__ == '__main__':
+    #frst_debug()
+    run_file( '/Users/david/epic_gs_data/tbx-9_8_CD20080221.csv' )

@@ -10,9 +10,17 @@ bl_info = {
     "category" : "3D View"
 }
 import sys
-import bpy
-from mathutils import Vector
 import os
+
+IN_BLENDER=False
+
+try:
+    import bpy
+    from mathutils import Vector
+    IN_BLENDER=True
+except ImportError:
+    print("bpy not found", file=sys.stderr)
+    IN_BLENDER=False
 
 def CreateLineageTracker( tips ):
     tree_nodes = Lineage.build_tree_from_tips( tips )
@@ -25,6 +33,9 @@ class LineageTracker:
         self.tree_nodes = tree_nodes
         self.current = current
         self.root = tree
+
+    def print_tree(self):
+        Lineage.print_tree(self.root)
 
     def set(self, node_str):
         #print( self.tree_nodes.keys(), file=sys.stderr)
@@ -117,6 +128,18 @@ class Lineage:
             if DEBUG: print("Lineage.recursively_link_parents( <%s>, {%s})" % (child_node['parent']['name'], node_dict), file=sys.stderr)
             if DEBUG: print("============= Recurse ===============>", file=sys.stderr)
             Lineage.recursively_link_parents(child_node['parent'], nodes)
+
+    def print_node(node, depth=0, file=sys.stderr):
+        tab = "    "
+
+        print(tab * depth, "name %s [%x]: (children=%d)" % (root['name'], id(root), len(root['children'])), file=file, end=' ')
+
+        if node['parent'] is None:
+            print('parent: None', file=file)
+        else:
+            print('parent: %s' % node['parent']['name'], file=file)
+        
+        
 
     def print_tree(root, depth=0):
         tab = "    "
@@ -389,8 +412,8 @@ class Cell:
             # make new Cell for right-hand element (only the metaball element is different)
             rightCell = Cell(cell_right_name, self.scene, nucleus_right, membrane_right)
 
-        leftCell.sibling = rightCell
-        rightCell.sibling = leftCell
+        if leftCell: leftCell.sibling = rightCell
+        if rightCell: rightCell.sibling = leftCell
         if leftCell: leftCell.mode = Cell.MODE_MITOSIS
         if rightCell: rightCell.mode = Cell.MODE_MITOSIS
         return leftCell, rightCell
@@ -410,6 +433,7 @@ class Cell:
 
         ### nucleus
         new_nucleus = Cell.clone_mobj(str(self.cellname) + "_nuc", self.nucleus_el)
+        new_nucleus.active_material = self.nucleus_obj.active_material
         scene.objects.link(new_nucleus)
         new_nucleus_el = new_nucleus.data.elements[0]
         new_nucleus_el.keyframe_insert("co")
@@ -422,6 +446,7 @@ class Cell:
         
         ### membrane
         new_membrane = Cell.clone_mobj(str(self.cellname) + "_mem", self.membrane_el)
+        new_membrane.active_material = self.membrane_obj.active_material
         scene.objects.link(new_membrane)
         new_membrane_el = new_membrane.data.elements[0]
         new_membrane_el.keyframe_insert("co")
@@ -436,7 +461,16 @@ class Cell:
         self.set_nucleus_datum(Cell_Datum(self.cellname, new_nucleus, new_nucleus.data, new_nucleus.data.elements[0]))
         self.set_membrane_datum(Cell_Datum(self.cellname, new_membrane, new_membrane.data, new_membrane.data.elements[0]))
 
+        # restore unhalved size
+        self.nucleus.mball_el.radius *= 6/5
+        self.membrane.mball_el.radius *= 6/5
+
+def test_lineage():
+    LINEAGE = CreateLineageTracker(ALL_END_PNTS)
+    LINEAGE.print_tree()
+
 def run_file(filename):
+    glow_nuc = bpy.data.materials['Glow_nuc_mat']
     nucleus_mat = bpy.data.materials['Nucleus_mat']
     membrane_mat = bpy.data.materials['Membrane_mat']
 
@@ -453,43 +487,57 @@ def run_file(filename):
     embryo = {}
     embryo['P0'] = P0_cell
 
-    quit_after = 40
+    quit_after = 30000
     for i,line in enumerate(fh):
         fields = line.strip().split(",")
         row = {}
         for key,value in zip(header_names,fields):
             row[key] = value
 
-        x,y,z = float(row['x'])/100,float(row['y'])/100,float(row['z'])/10
+        x,y,z = float(row['x'])/50,float(row['y'])/50,float(row['z'])/5
 
         # set time point
         bpy.context.scene.frame_current = int(row['time']) * 12
+        bpy.context.scene.frame_end = bpy.context.scene.frame_current
 
         if row['cell'] not in embryo:
             # we need to see if the parent of the current row's cell exists
-            parent_cell_name = Lineage.get_parent(row['cell'], LINEAGE.tree_nodes)["name"]
-            print("current cell [%s] ----PARENT---> [%s]" %(row['cell'], parent_cell_name))
+            try:
+                parent_cell_name = Lineage.get_parent(row['cell'], LINEAGE.tree_nodes)["name"]
+            except TypeError as te:
+                print("current cell [%s] COULD NOT FIND PARENT" % row['cell'], file=sys.stderr)
+                Lineage.print_node(LINEAGE.tree_nodes[ row['cell'] ] )
+                raise te
+
+            #print("current cell [%s] ----PARENT---> [%s]" %(row['cell'], parent_cell_name), file=sys.stderr)
             if parent_cell_name in embryo:
                 parent = embryo[parent_cell_name]
                 # fork children
                 children = parent.start_mitosis()
                 for child in children:
+                    if child is None: continue
                     childname = str(child.cellname)
                     print("spawning [%s]" % childname)
                     embryo[childname] = child
-                    print(embryo.keys())
+                    #print(embryo.keys())
+            else:
+                print("parent_cell_name %s is not in {embryo}", parent_cell_name, file=sys.stderr)
 
         current_cell = embryo[ row['cell'] ]
-        print("move cell %s to %s,%s,%s" % (row['cell'], row['x'], row['y'], row['z']))
+        #print("move cell %s to %s,%s,%s" % (row['cell'], row['x'], row['y'], row['z']))
         current_cell.move_to( Vector( (x,y,z) ) )
 
         if current_cell.in_mitosis() and current_cell.mitosis_ticks > 4:
             current_cell.end_cytokinesis()
+            if str(current_cell.cellname) != 'EMS' and str(current_cell.cellname).startswith('E'):
+                current_cell.set_nucleus_material( glow_nuc )
         
 
 
         if i >= quit_after:
             break
+
+
 
 def frst_debug():
     global ALL_END_PNTS
@@ -535,41 +583,384 @@ def frst_debug():
 
 
 ALL_END_PNTS = [
- 'ABalaaaala', 'ABalaaaalp', 'ABalaaaarl', 'ABalaaaarr', 'ABalaaapal', 'ABalaaapar', 'ABalaaappl', 'ABalaaappr', 'ABalaapaaa', 'ABalaapaap', 'ABalaapapa',
- 'ABalaapapp', 'ABalaappaa', 'ABalaappap', 'ABalaapppa', 'ABalaapppp', 'ABalapaaaa', 'ABalapaaap', 'ABalapaapa', 'ABalapaapp', 'ABalapapaa', 'ABalapapap',
- 'ABalapappa', 'ABalapappp', 'ABalappaaa', 'ABalappaap', 'ABalappapa', 'ABalappapp', 'ABalapppaa', 'ABalapppap', 'ABalappppa', 'ABalappppp', 'ABalpaaaaa',
- 'ABalpaaaap', 'ABalpaaapa', 'ABalpaaapp', 'ABalpaapaa', 'ABalpaapap', 'ABalpaappa', 'ABalpaappp', 'ABalpapaaa', 'ABalpapaap', 'ABalpapapa', 'ABalpapapp',
- 'ABalpappaa', 'ABalpappap', 'ABalpapppa', 'ABalpapppp', 'ABalppaaaa', 'ABalppaaap', 'ABalppaapa', 'ABalppaapp', 'ABalppapaa', 'ABalppapap', 'ABalppappa',
- 'ABalppappp', 'ABalpppaaa', 'ABalpppaap', 'ABalpppapa', 'ABalpppapp', 'ABalppppaa', 'ABalppppap', 'ABalpppppa', 'ABalpppppp', 'ABaraaaaaa', 'ABaraaaaap',
- 'ABaraaaapa', 'ABaraaaapp', 'ABaraaapaa', 'ABaraaapap', 'ABaraaappa', 'ABaraaappp', 'ABaraapaaa', 'ABaraapaap', 'ABaraapapa', 'ABaraapapp', 'ABaraappaa',
- 'ABaraappap', 'ABaraapppa', 'ABaraapppp', 'ABarapaaaa', 'ABarapaaap', 'ABarapaapa', 'ABarapaapp', 'ABarapapaa', 'ABarapapap', 'ABarapappa', 'ABarapappp',
- 'ABarappaaa', 'ABarappaap', 'ABarappapa', 'ABarappapp', 'ABarapppaa', 'ABarapppap', 'ABarappppa', 'ABarappppp', 'ABarpaaaaa', 'ABarpaaaap', 'ABarpaaapa',
- 'ABarpaaapp', 'ABarpaapaa', 'ABarpaapap', 'ABarpaappa', 'ABarpaappp', 'ABarpapaaa', 'ABarpapaap', 'ABarpapapa', 'ABarpapapp', 'ABarpappaa', 'ABarpappap',
- 'ABarpapppa', 'ABarpapppp', 'ABarppaaaa', 'ABarppaaap', 'ABarppaapa', 'ABarppaapp', 'ABarppapaa', 'ABarppapap', 'ABarppappa', 'ABarppappp', 'ABarpppaaa',
- 'ABarpppaap', 'ABarpppapa', 'ABarpppapp', 'ABarppppaa', 'ABarppppap', 'ABarpppppa', 'ABarpppppp', 'ABplaaaaaa', 'ABplaaaaap', 'ABplaaaapa', 'ABplaaaapp',
- 'ABplaaapaa', 'ABplaaapap', 'ABplaaappa', 'ABplaaappp', 'ABplaapaaa', 'ABplaapaap', 'ABplaapapa', 'ABplaapapp', 'ABplaappaa', 'ABplaappap', 'ABplaapppa',
- 'ABplaapppp', 'ABplapaaaa', 'ABplapaaap', 'ABplapaapa', 'ABplapaapp', 'ABplapapaa', 'ABplapapap', 'ABplapappa', 'ABplapappp', 'ABplappaaa', 'ABplappaap',
- 'ABplappapa', 'ABplappapp', 'ABplapppaa', 'ABplapppap', 'ABplappppa', 'ABplappppp', 'ABplpaaaaa', 'ABplpaaaap', 'ABplpaaapa', 'ABplpaaapp', 'ABplpaapaa',
- 'ABplpaapap', 'ABplpaappa', 'ABplpaappp', 'ABplpapaaa', 'ABplpapaap', 'ABplpapapa', 'ABplpapapp', 'ABplpappaa', 'ABplpappap', 'ABplpapppa', 'ABplpapppp',
- 'ABplppaaaa', 'ABplppaaap', 'ABplppaapa', 'ABplppaapp', 'ABplppapaa', 'ABplppapap', 'ABplppappa', 'ABplppappp', 'ABplpppaaa', 'ABplpppaap', 'ABplpppapa',
- 'ABplpppapp', 'ABplppppaa', 'ABplppppap', 'ABplpppppa', 'ABplpppppp', 'ABpraaaaaa', 'ABpraaaaap', 'ABpraaaapa', 'ABpraaaapp', 'ABpraaapaa', 'ABpraaapap',
- 'ABpraaappa', 'ABpraaappp', 'ABpraapaaa', 'ABpraapaap', 'ABpraapapa', 'ABpraapapp', 'ABpraappaa', 'ABpraappap', 'ABpraapppa', 'ABpraapppp', 'ABprapaaaa',
- 'ABprapaaap', 'ABprapaapa', 'ABprapaapp', 'ABprapapaa', 'ABprapapap', 'ABprapappa', 'ABprapappp', 'ABprappaaa', 'ABprappaap', 'ABprappapa', 'ABprappapp',
- 'ABprapppaa', 'ABprapppap', 'ABprappppa', 'ABprappppp', 'ABprpaaaaa', 'ABprpaaaap', 'ABprpaaapa', 'ABprpaaapp', 'ABprpaapaa', 'ABprpaapap', 'ABprpaappa',
- 'ABprpaappp', 'ABprpapaaa', 'ABprpapaap', 'ABprpapapa', 'ABprpapapp', 'ABprpappaa', 'ABprpappap', 'ABprpapppa', 'ABprpapppp', 'ABprppaaaa', 'ABprppaaap',
- 'ABprppaapa', 'ABprppaapp', 'ABprppapaa', 'ABprppapap', 'ABprppappa', 'ABprppappp', 'ABprpppaaa', 'ABprpppaap', 'ABprpppapa', 'ABprpppapp', 'ABprppppaa',
- 'ABprppppap', 'ABprpppppa', 'ABprpppppp', 'MSaaaaaa', 'MSaaaaap', 'MSaaaapa', 'MSaaaapp', 'MSaaapaa', 'MSaaapap', 'MSaaapp', 'MSaapaaa',
- 'MSaapaap', 'MSaapapa', 'MSaapapp', 'MSaappa', 'MSaappp', 'MSapaaaa', 'MSapaaap', 'MSapaap', 'MSapapaa', 'MSapapap', 'MSapapp',
- 'MSappaa', 'MSappap', 'MSapppa', 'MSapppp', 'MSpaaaaa', 'MSpaaaap', 'MSpaaapa', 'MSpaaapp', 'MSpaapaa', 'MSpaapap', 'MSpaapp',
- 'MSpapaaa', 'MSpapaap', 'MSpapapa', 'MSpapapp', 'MSpappa', 'MSpappp', 'MSppaaaa', 'MSppaaap', 'MSppaap', 'MSppapaa', 'MSppapap',
- 'MSppapp', 'MSpppaa', 'MSpppap', 'MSppppa', 'MSppppp', 'Ealaa', 'Ealap', 'Ealpa', 'Ealpp', 'Earaa', 'Earap',
- 'Earpa', 'Earpp', 'Eplaa', 'Eplap', 'Eplpa', 'Eplpp', 'Epraa', 'Eprap', 'Eprpa', 'Eprpp', 'Caaaaa',
- 'Caaaap', 'Caaapa', 'Caaapp', 'Caapa', 'Caappd', 'Caappv', 'Capaa', 'Capap', 'Cappaa', 'Cappap', 'Capppa',
- 'Capppp', 'Cpaaaa', 'Cpaaap', 'Cpaapa', 'Cpaapp', 'Cpapaa', 'Cpapap', 'Cpappd', 'Cpappv', 'Cppaaa', 'Cppaap',
- 'Cppapa', 'Cppapp', 'Cpppaa', 'Cpppap', 'Cppppa', 'Cppppp', 'Daaa', 'Daap', 'Dapa', 'Dapp', 'Dpaa',
- 'Dpap', 'Dppa', 'Dppp', 'Z2', 'Z3']
+'ABalaaaala',
+'ABalaaaalp',
+'ABalaaaarl',
+'ABalaaaarr',
+'ABalaaapal',
+'ABalaaapar',
+'ABalaaappl',
+'ABalaaappr',
+'ABalaapaaa',
+'ABalaapaap',
+'ABalaapapa',
+'ABalaapapp',
+'ABalaappaa',
+'ABalaappap',
+'ABalaapppa',
+'ABalaapppp',
+'ABalapaaaa',
+'ABalapaaap',
+'ABalapaapa',
+'ABalapaapp',
+'ABalapapaa',
+'ABalapapap',
+'ABalapappa',
+'ABalapappp',
+'ABalappaaa',
+'ABalappaap',
+'ABalappapa',
+'ABalappapp',
+'ABalapppaa',
+'ABalapppap',
+'ABalappppa',
+'ABalappppp',
+'ABalpaaaaa',
+'ABalpaaaap',
+'ABalpaaapa',
+'ABalpaaapp',
+'ABalpaapaa',
+'ABalpaapap',
+'ABalpaappa',
+'ABalpaappp',
+'ABalpapaaa',
+'ABalpapaap',
+'ABalpapapa',
+'ABalpapapp',
+'ABalpappaa',
+'ABalpappap',
+'ABalpapppa',
+'ABalpapppp',
+'ABalppaaaa',
+'ABalppaaap',
+'ABalppaapa',
+'ABalppaapp',
+'ABalppapaa',
+'ABalppapap',
+'ABalppappa',
+'ABalppappp',
+'ABalpppaaa',
+'ABalpppaap',
+'ABalpppapa',
+'ABalpppapp',
+'ABalppppaa',
+'ABalppppap',
+'ABalpppppa',
+'ABalpppppp',
+'ABaraaaaaa',
+'ABaraaaaap',
+'ABaraaaapa',
+'ABaraaaapp',
+'ABaraaapaa',
+'ABaraaapap',
+'ABaraaappa',
+'ABaraaappp',
+'ABaraapaaa',
+'ABaraapaap',
+'ABaraapapa',
+'ABaraapapp',
+'ABaraappaa',
+'ABaraappap',
+'ABaraapppa',
+'ABaraapppp',
+'ABarapaaaa',
+'ABarapaaap',
+'ABarapaapa',
+'ABarapaapp',
+'ABarapapaa',
+'ABarapapap',
+'ABarapappa',
+'ABarapappp',
+'ABarappaaa',
+'ABarappaap',
+'ABarappapa',
+'ABarappapp',
+'ABarapppaa',
+'ABarapppap',
+'ABarappppa',
+'ABarappppp',
+'ABarpaaaaa',
+'ABarpaaaap',
+'ABarpaaapa',
+'ABarpaaapp',
+'ABarpaapaa',
+'ABarpaapap',
+'ABarpaappa',
+'ABarpaappp',
+'ABarpapaaa',
+'ABarpapaap',
+'ABarpapapa',
+'ABarpapapp',
+'ABarpappaa',
+'ABarpappap',
+'ABarpapppa',
+'ABarpapppp',
+'ABarppaaaa',
+'ABarppaaap',
+'ABarppaapa',
+'ABarppaapp',
+'ABarppapaa',
+'ABarppapap',
+'ABarppappa',
+'ABarppappp',
+'ABarpppaaa',
+'ABarpppaap',
+'ABarpppapa',
+'ABarpppapp',
+'ABarppppaa',
+'ABarppppap',
+'ABarpppppa',
+'ABarpppppp',
+'ABplaaaaaa',
+'ABplaaaaap',
+'ABplaaaapa',
+'ABplaaaapp',
+'ABplaaapaa',
+'ABplaaapap',
+'ABplaaappa',
+'ABplaaappp',
+'ABplaapaaa',
+'ABplaapaap',
+'ABplaapapa',
+'ABplaapapp',
+'ABplaappaa',
+'ABplaappap',
+'ABplaapppa',
+'ABplaapppp',
+'ABplapaaaa',
+'ABplapaaap',
+'ABplapaapa',
+'ABplapaapp',
+'ABplapapaa',
+'ABplapapap',
+'ABplapappa',
+'ABplapappp',
+'ABplappaaa',
+'ABplappaap',
+'ABplappapa',
+'ABplappapp',
+'ABplapppaa',
+'ABplapppap',
+'ABplappppa',
+'ABplappppp',
+'ABplpaaaaa',
+'ABplpaaaap',
+'ABplpaaapa',
+'ABplpaaapp',
+'ABplpaapaa',
+'ABplpaapap',
+'ABplpaappa',
+'ABplpaappp',
+'ABplpapaaa',
+'ABplpapaap',
+'ABplpapapa',
+'ABplpapapp',
+'ABplpappaa',
+'ABplpappap',
+'ABplpapppa',
+'ABplpapppp',
+'ABplppaaaa',
+'ABplppaaap',
+'ABplppaapa',
+'ABplppaapp',
+'ABplppapaa',
+'ABplppapap',
+'ABplppappa',
+'ABplppappp',
+'ABplpppaaa',
+'ABplpppaap',
+'ABplpppapa',
+'ABplpppapp',
+'ABplppppaa',
+'ABplppppap',
+'ABplpppppa',
+'ABplpppppp',
+'ABpraaaaaa',
+'ABpraaaaap',
+'ABpraaaapa',
+'ABpraaaapp',
+'ABpraaapaa',
+'ABpraaapap',
+'ABpraaappa',
+'ABpraaappp',
+'ABpraapaaa',
+'ABpraapaap',
+'ABpraapapa',
+'ABpraapapp',
+'ABpraappaa',
+'ABpraappap',
+'ABpraapppa',
+'ABpraapppp',
+'ABprapaaaa',
+'ABprapaaap',
+'ABprapaapa',
+'ABprapaapp',
+'ABprapapaa',
+'ABprapapap',
+'ABprapappa',
+'ABprapappp',
+'ABprappaaa',
+'ABprappaap',
+'ABprappapa',
+'ABprappapp',
+'ABprapppaa',
+'ABprapppap',
+'ABprappppa',
+'ABprappppp',
+'ABprpaaaaa',
+'ABprpaaaap',
+'ABprpaaapa',
+'ABprpaaapp',
+'ABprpaapaa',
+'ABprpaapap',
+'ABprpaappa',
+'ABprpaappp',
+'ABprpapaaa',
+'ABprpapaap',
+'ABprpapapa',
+'ABprpapapp',
+'ABprpappaa',
+'ABprpappap',
+'ABprpapppa',
+'ABprpapppp',
+'ABprppaaaa',
+'ABprppaaap',
+'ABprppaapa',
+'ABprppaapp',
+'ABprppapaa',
+'ABprppapap',
+'ABprppappa',
+'ABprppappp',
+'ABprpppaaa',
+'ABprpppaap',
+'ABprpppapa',
+'ABprpppapp',
+'ABprppppaa',
+'ABprppppap',
+'ABprpppppa',
+'ABprpppppp',
+'Caaaaa',
+'Caaaap',
+'Caaapa',
+'Caaapp',
+'Caapa',
+'Caappd',
+'Caappv',
+'Capaa',
+'Capaaa',
+'Capaap',
+'Capapa',
+'Capapp',
+'Cappaa',
+'Cappap',
+'Capppa',
+'Capppp',
+'Cpaaaa',
+'Cpaaap',
+'Cpaapa',
+'Cpaapp',
+'Cpapaa',
+'Cpapap',
+'Cpappd',
+'Cpappv',
+'Cppaaa',
+'Cppaap',
+'Cppapa',
+'Cppapp',
+'Cpppaa',
+'Cpppap',
+'Cppppa',
+'Cppppp',
+'Daaa',
+'Daap',
+'Dapa',
+'Dapp',
+'Dpaa',
+'Dpap',
+'Dppa',
+'Dppp',
+'Ealaa',
+'Ealap',
+'Ealpa',
+'Ealpp',
+'Earaa',
+'Earap',
+'Earpa',
+'Earpp',
+'Eplaa',
+'Eplap',
+'Eplpa',
+'Eplpp',
+'Epraa',
+'Eprap',
+'Eprpa',
+'Eprpp',
+'MSaaaaaa',
+'MSaaaaap',
+'MSaaaapa',
+'MSaaaapp',
+'MSaaapaa',
+'MSaaapap',
+'MSaaapp',
+'MSaapaaa',
+'MSaapaap',
+'MSaapapa',
+'MSaapapp',
+'MSaappa',
+'MSaappp',
+'MSapaaaa',
+'MSapaaap',
+'MSapaap',
+'MSapapaa',
+'MSapapap',
+'MSapapp',
+'MSapappp',
+'MSappaa',
+'MSappap',
+'MSapppa',
+'MSapppp',
+'MSpaaaaa',
+'MSpaaaap',
+'MSpaaapa',
+'MSpaaapp',
+'MSpaapaa',
+'MSpaapap',
+'MSpaapp',
+'MSpapaaa',
+'MSpapaap',
+'MSpapapa',
+'MSpapapp',
+'MSpappa',
+'MSpappp',
+'MSppaaaa',
+'MSppaaap',
+'MSppaap',
+'MSppapa',
+'MSppapaa',
+'MSppapaaa',
+'MSppapaap',
+'MSppapap',
+'MSppapp',
+'MSppappa',
+'MSppappp',
+'MSpppaa',
+'MSpppap',
+'MSppppa',
+'MSppppp',
+'Z2',
+'MSapappa',
+'Z3']
 
-
+"""
+   2 'MSppapaa',
+   1 'MSppapaaa',
+   1 'MSppapaap',
+   3 'MSppapap',
+   2 'MSppapp',
+"""
 if __name__ == '__main__':
     #frst_debug()
-    run_file( '/Users/david/epic_gs_data/tbx-9_8_CD20080221.csv' )
+    if IN_BLENDER:
+        run_file( '/Users/david/epic_gs_data/tbx-9_8_CD20080221.csv' )
+    else:
+        test_lineage()

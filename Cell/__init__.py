@@ -951,13 +951,6 @@ ALL_END_PNTS = [
 'MSapappa',
 'Z3']
 
-"""
-   2 'MSppapaa',
-   1 'MSppapaaa',
-   1 'MSppapaap',
-   3 'MSppapap',
-   2 'MSppapp',
-"""
 if __name__ == '__main__':
     #frst_debug()
     if IN_BLENDER:

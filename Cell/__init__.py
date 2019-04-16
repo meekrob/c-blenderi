@@ -228,7 +228,7 @@ class Cell_Datum:
         return obj
 
     def debut_el_copy_at_current_frame(el_template, mball, scene):
-        print("Cell_Datum.debut_el_copy_at_current_frame( " + mball.name + " )", file=sys.stderr)
+        print("Cell_Datum.debut_el_copy_at_current_frame( " + mball.name + " ) at frame", scene.frame_current, file=sys.stderr)
         # this is a new element of mball, cloning properties of el_template
         current_frame = scene.frame_current
         el = Cell.clone_el_inside_metaball(el_template)
@@ -238,6 +238,7 @@ class Cell_Datum:
         el_template.radius = el.radius
         el_template.keyframe_insert("radius")
         el.keyframe_insert("radius")
+        print("Cell_Datum.debut_el_copy_at_current_frame( " + mball.name + " )", "el_template.radius=%f, el.radius=%f" % (el_template.radius, el_template.radius), file=sys.stderr)
         # debut in timeline
         Cell.hide_at_frame(el, scene, 1)
         Cell.show_at_frame(el, scene, current_frame)
@@ -296,6 +297,8 @@ class Cell:
         mball.render_resolution = 0.1
         el = mball.elements.new()
         el.radius = .5
+        el.keyframe_insert("radius")
+        print("SPAWN %s, nucleus radius %f at frame %d" % (cellname, el.radius, scene.frame_current), file=sys.stderr)
         ## insert visibility keyframe (should it go here?)
         el.keyframe_insert("hide")
         ## visibility keyframe
@@ -311,6 +314,8 @@ class Cell:
         el.keyframe_insert("hide")
         ## visibility keyframe
         el.radius = 1
+        el.keyframe_insert("radius")
+        print("SPAWN %s, membrane radius %f at frame %d" % (cellname, el.radius, scene.frame_current), file=sys.stderr)
         mem_data = Cell_Datum(cellname, obj, mball, el)
         
         # make a Cell
@@ -325,6 +330,7 @@ class Cell:
         self.mode = Cell.MODE_GROWTH
         self.sibling = None
         self.mitosis_ticks = 0
+        self.n_divisions = 0
 
     def set_nucleus_material(self, material):
         self.nucleus_obj.active_material = material
@@ -353,7 +359,7 @@ class Cell:
         return self.mode == Cell.MODE_MITOSIS
 
     def move_to(self, vec, insert_keyframes=True):
-        print(str(self.cellname) + ".move_to", file=sys.stderr, end=' ')
+        print(str(self.cellname) + ".move_to" + str(vec), "at frame %d" % self.scene.frame_current, file=sys.stderr, end=' ')
         if self.mode == Cell.MODE_MITOSIS:
             self.mitosis_ticks += 1
             print("%d moves in mitosis" % self.mitosis_ticks, file=sys.stderr,)
@@ -367,7 +373,7 @@ class Cell:
             self.nucleus_el.keyframe_insert("co")
 
     def start_mitosis(self):
-        print(str(self.cellname) + ".start_mitosis", file=sys.stderr)
+        print(str(self.cellname) + ".start_mitosis at frame %d" % self.scene.frame_current, file=sys.stderr)
         if self.mode != Cell.MODE_GROWTH:
             print(self.cellname, "called start_mitosis() in error: it not in MODE_GROWTH, it is in %s" % self.mode, file=sys.stderr)
             return
@@ -412,14 +418,19 @@ class Cell:
             # make new Cell for right-hand element (only the metaball element is different)
             rightCell = Cell(cell_right_name, self.scene, nucleus_right, membrane_right)
 
-        if leftCell: leftCell.sibling = rightCell
-        if rightCell: rightCell.sibling = leftCell
-        if leftCell: leftCell.mode = Cell.MODE_MITOSIS
-        if rightCell: rightCell.mode = Cell.MODE_MITOSIS
+        if leftCell: 
+            leftCell.sibling = rightCell
+            leftCell.mode = Cell.MODE_MITOSIS
+            leftCell.n_divisions += 1
+        if rightCell: 
+            rightCell.sibling = leftCell
+            rightCell.mode = Cell.MODE_MITOSIS
+            rightCell.n_divisions += 1
+
         return leftCell, rightCell
 
     def end_cytokinesis(self):
-        print(str(self.cellname) + ".end_cytokinesis", file=sys.stderr)
+        print(str(self.cellname) + ".end_cytokinesis at frame %d" % self.scene.frame_current, file=sys.stderr)
         if self.mode != Cell.MODE_MITOSIS:
             print(self.cellname, "called end_cytokinesis() in error: it is not in MODE_MITOSIS, it is in %s" % self.mode, file=sys.stderr)
             return
@@ -430,6 +441,12 @@ class Cell:
         # its material and texture properties to be set individually
         current_frame = self.scene.frame_current
         scene = self.scene
+
+        # make the size changes gradual
+        self.nucleus_el.radius *= 6/5
+        self.membrane_el.radius *= 6/5
+        self.nucleus_el.keyframe_insert("radius")
+        self.membrane_el.keyframe_insert("radius")
 
         ### nucleus
         new_nucleus = Cell.clone_mobj(str(self.cellname) + "_nuc", self.nucleus_el)
@@ -487,8 +504,13 @@ def run_file(filename):
     embryo = {}
     embryo['P0'] = P0_cell
 
+    # sort fh
+    rows = [{'line':row, 'time': int(row.split(',')[2])} for row in fh.readlines()]
+    rows.sort(key=lambda a: a['time'])
+
     quit_after = 30000
-    for i,line in enumerate(fh):
+    #for i,line in enumerate(fh):
+    for i,line in enumerate( row['line'] for row in rows ):
         fields = line.strip().split(",")
         row = {}
         for key,value in zip(header_names,fields):
@@ -517,7 +539,7 @@ def run_file(filename):
                 for child in children:
                     if child is None: continue
                     childname = str(child.cellname)
-                    print("spawning [%s]" % childname)
+                    print("spawning [%s] at frame %d" % (childname,bpy.context.scene.frame_current), file=sys.stderr)
                     embryo[childname] = child
                     #print(embryo.keys())
             else:

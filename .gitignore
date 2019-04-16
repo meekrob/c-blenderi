@@ -1,0 +1,8 @@
+*.blend*
+*.png
+*.mp4
+*.mpg
+*.mkv
+*.tgz
+*.prproj
+__pycache__/

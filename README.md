@@ -8,6 +8,6 @@ But this video is live on youtube:
 
 <img alt="Screenshot demo" src="/screenshots/youtube_metaballs_50pc_10s.gif" width=328 height=195>
 
-The animation is based on data from (find Waterson link): which traces the development of *C. elegans* embryos which carry reporter strains for various transcription factors.
+The animation is based on data from the [Waterston Lab Lineaging Project](https://waterston.gs.washington.edu/), a system that traced the development of *C. elegans* embryos which carry reporter strains for various transcription factors, using imaging to resolve lineages.
 
 
